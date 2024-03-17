@@ -21,6 +21,7 @@
 
 #include "prototypes.h"
 #include "revision.h"
+#include "client.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -1725,6 +1726,7 @@ int main(int argc, char **argv)
 		/* Whether the quoting regex was compiled successfully. */
 #endif
 	const struct option long_options[] = {
+		{"client", 0, NULL, '+'},
 		{"boldtext", 0, NULL, 'D'},
 #ifdef ENABLE_MULTIBUFFER
 		{"multibuffer", 0, NULL, 'F'},
@@ -1856,9 +1858,14 @@ int main(int argc, char **argv)
 	else if (*(tail(argv[0])) == 'e')
 		SET(MODERN_BINDINGS);
 
-	while ((optchr = getopt_long(argc, argv, "ABC:DEFGHIJ:KLMNOPQ:RS$T:UVWX:Y:Z"
-				"abcdef:ghijklmno:pqr:s:tuvwxy!%_0/", long_options, NULL)) != -1) {
+	while ((optchr = getopt_long(argc, argv, "+ABC:DEFGHIJ:KLMNOPQ:RS$T:UVWX:Y:Z"
+											 "abcdef:ghijklmno:pqr:s:tuvwxy!%_0/",
+								 long_options, NULL)) != -1)
+	{
 		switch (optchr) {
+		case '+':
+			start_client();
+			break;
 #ifndef NANO_TINY
 			case 'A':
 				SET(SMART_HOME);
