@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <pthread.h>
 #ifdef __linux__
 #include <sys/ioctl.h>
 #endif
@@ -1570,8 +1571,10 @@ void process_a_keystroke(void)
 	const keystruct *shortcut;
 	functionptrtype function;
 
+	pthread_mutex_unlock(&lock_buffer);
 	/* Read in a keystroke, and show the cursor while waiting. */
 	input = get_kbinput(midwin, VISIBLE);
+	pthread_mutex_lock(&lock_buffer);
 
 	lastmessage = VACUUM;
 
@@ -1864,7 +1867,7 @@ int main(int argc, char **argv)
 	{
 		switch (optchr) {
 		case '+':
-			start_client();
+			remote_buffer = TRUE;
 			break;
 #ifndef NANO_TINY
 			case 'A':
@@ -2603,6 +2606,10 @@ int main(int argc, char **argv)
 #endif
 
 	we_are_running = TRUE;
+
+	/* Initiate the connection to the remote buffer if needed. */
+	if (remote_buffer)
+		start_client();
 
 	while (TRUE) {
 #ifdef ENABLE_LINENUMBERS
