@@ -1571,9 +1571,8 @@ void process_a_keystroke(void)
 	const keystruct *shortcut;
 	functionptrtype function;
 
-	pthread_mutex_unlock(&lock_buffer);
-	/* Read in a keystroke, and show the cursor while waiting. */
-	input = get_kbinput(midwin, VISIBLE);
+        /* Read in a keystroke, and show the cursor while waiting. */
+        input = get_kbinput(midwin, VISIBLE);
 	pthread_mutex_lock(&lock_buffer);
 
 	lastmessage = VACUUM;
@@ -2608,10 +2607,13 @@ int main(int argc, char **argv)
 	we_are_running = TRUE;
 
 	/* Initiate the connection to the remote buffer if needed. */
-	if (remote_buffer)
-		start_client();
+        if (remote_buffer) {
+          start_client();
+          while (!download_done)
+            usleep(50000);
+        }
 
-	while (TRUE) {
+        while (TRUE) {
 #ifdef ENABLE_LINENUMBERS
 		confirm_margin();
 #endif
@@ -2663,5 +2665,6 @@ int main(int argc, char **argv)
 
 		/* Read in and interpret a single keystroke. */
 		process_a_keystroke();
-	}
+                pthread_mutex_unlock(&lock_buffer);
+        }
 }
