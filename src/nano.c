@@ -73,6 +73,7 @@ linestruct *make_new_node(linestruct *prevnode)
 	newnode->prev = prevnode;
 	newnode->next = NULL;
 	newnode->data = NULL;
+	newnode->is_locked = false;
 #ifdef ENABLE_COLOR
 	newnode->multidata = NULL;
 #endif

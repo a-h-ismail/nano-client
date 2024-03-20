@@ -483,6 +483,9 @@ typedef struct linestruct {
 #ifndef NANO_TINY
 	bool has_anchor;
 		/* Whether the user has placed an anchor at this line. */
+
+	bool is_locked;
+	/* Wether or not the line is locked. */
 #endif
 } linestruct;
 
