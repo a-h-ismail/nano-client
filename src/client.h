@@ -4,6 +4,7 @@
 typedef struct sockaddr SA;
 
 extern bool remote_buffer;
+extern bool download_done;
 
 int read_data(void *_dest, int N);
 

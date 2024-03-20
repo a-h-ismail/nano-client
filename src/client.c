@@ -12,6 +12,8 @@
 int b_start;
 int b_current;
 bool remote_buffer = false;
+bool download_done = false;
+
 #define TC_BUF_SIZE 1024
 // Used for thread communication
 char tc_buffer[TC_BUF_SIZE];
@@ -23,6 +25,7 @@ typedef enum rt_command
     STATE,
     ADD_LINE,
     APPEND_LINE,
+    END_APPEND,
     ADD_STR,
     REMOVE_STR,
     REMOVE_LINE,
@@ -39,7 +42,7 @@ void *sync_receiver(void *_srv_descriptor)
     {
         if (read(server_descriptor, buffer, 2) < 1)
             // die("Connection to the server was lost!");
-            return;
+            return NULL;
 
         // Received invalid data, do nothing
         if (!(buffer[0] == 'f' && buffer[1] == 's'))
@@ -99,11 +102,30 @@ void process_commands(char *commands)
     case APPEND_LINE:
         tmp = make_new_node(openfile->filebot);
         tmp->next = NULL;
-        tmp->lineno = openfile->filebot->lineno + 1;
-        tmp->data = strdup(commands + 1);
-        openfile->filebot->next = tmp;
-        openfile->filebot = tmp;
-        edit_refresh();
+        // Case of the first empty line and the server having a non empty first line
+        if (openfile->filebot == openfile->filetop && strlen(openfile->filebot->data) == 0 && commands[1] != '\0')
+        {
+            tmp->lineno = 1;
+            tmp->has_anchor = true;
+            tmp->data = strdup(commands + 1);
+            free(openfile->filebot->data);
+            openfile->current = tmp;
+            openfile->edittop = tmp;
+            openfile->filetop = openfile->filebot = tmp;
+        }
+        else
+        {
+            tmp->lineno = openfile->filebot->lineno + 1;
+            tmp->data = strdup(commands + 1);
+            openfile->filebot->next = tmp;
+            openfile->filebot = tmp;
+        }
+        break;
+    case END_APPEND:
+        download_done = true;
+        break;
+    default:
+        return;
     }
 
     pthread_mutex_unlock(&lock_buffer);
@@ -130,7 +152,7 @@ void start_client()
         die("Failed to connect to the target server...");
 
     // Start the sync client transmitter and receiver
-    pthread_create(&transmitter, &thread_attr, sync_receiver, &server_descriptor);
+    pthread_create(&transmitter, &thread_attr, sync_transmitter, &server_descriptor);
     pthread_create(&receiver, &thread_attr, sync_receiver, &server_descriptor);
     // pthread_join(transmitter, NULL);
     pthread_join(receiver, NULL);
