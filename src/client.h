@@ -12,6 +12,6 @@ int write_data(void *_dest, int N);
 
 void start_client();
 
-extern pthread_mutex_t lock_buffer;
+extern pthread_mutex_t lock_openfile;
 
 #endif

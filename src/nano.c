@@ -1573,7 +1573,7 @@ void process_a_keystroke(void)
 
         /* Read in a keystroke, and show the cursor while waiting. */
         input = get_kbinput(midwin, VISIBLE);
-	pthread_mutex_lock(&lock_buffer);
+		pthread_mutex_lock(&lock_openfile);
 
 	lastmessage = VACUUM;
 
@@ -2665,6 +2665,6 @@ int main(int argc, char **argv)
 
 		/* Read in and interpret a single keystroke. */
 		process_a_keystroke();
-                pthread_mutex_unlock(&lock_buffer);
-        }
+		pthread_mutex_unlock(&lock_openfile);
+		}
 }

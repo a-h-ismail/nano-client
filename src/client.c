@@ -18,7 +18,7 @@ bool download_done = false;
 // Used for thread communication
 char tc_buffer[TC_BUF_SIZE];
 void process_commands(char *commands);
-pthread_mutex_t lock_buffer;
+pthread_mutex_t lock_openfile, lock_tc;
 
 typedef enum rt_command
 {
@@ -95,7 +95,7 @@ void process_commands(char *commands)
     function = commands[0];
     linestruct *tmp;
     // Lock the open file buffer from being modified
-    pthread_mutex_lock(&lock_buffer);
+    pthread_mutex_lock(&lock_openfile);
 
     switch (function)
     {
@@ -128,7 +128,7 @@ void process_commands(char *commands)
         return;
     }
 
-    pthread_mutex_unlock(&lock_buffer);
+    pthread_mutex_unlock(&lock_openfile);
 }
 
 // Starts the sync client: connects to the server and initiates transmit/receive threads
@@ -138,7 +138,8 @@ void start_client()
     pthread_mutexattr_t mtx_attr;
     pthread_t transmitter, receiver;
     pthread_mutexattr_init(&mtx_attr);
-    pthread_mutex_init(&lock_buffer, &mtx_attr);
+    pthread_mutex_init(&lock_openfile, &mtx_attr);
+    pthread_mutex_init(&lock_tc, &mtx_attr);
     pthread_attr_init(&thread_attr);
 
     // Create the socket to be used
@@ -154,8 +155,6 @@ void start_client()
     // Start the sync client transmitter and receiver
     pthread_create(&transmitter, &thread_attr, sync_transmitter, &server_descriptor);
     pthread_create(&receiver, &thread_attr, sync_receiver, &server_descriptor);
-    // pthread_join(transmitter, NULL);
-    pthread_join(receiver, NULL);
     return;
 }
 
@@ -163,8 +162,7 @@ int read_data(void *_dest, int N)
 {
     int i;
     char *dest = _dest;
-    while (pthread_mutex_trylock(&lock_buffer) != 0)
-        ;
+    pthread_mutex_lock(&lock_tc);
 
     for (i = 0; i < N && b_start != b_current; ++i)
     {
@@ -173,7 +171,7 @@ int read_data(void *_dest, int N)
         if (b_start > TC_BUF_SIZE)
             b_start = 0;
     }
-    pthread_mutex_unlock(&lock_buffer);
+    pthread_mutex_unlock(&lock_tc);
     return i;
 }
 
@@ -181,8 +179,8 @@ int write_data(void *_src, int N)
 {
     int i;
     char *source = _src;
-    while (pthread_mutex_trylock(&lock_buffer) != 0)
-        ;
+    pthread_mutex_lock(&lock_tc);
+
     for (i = 0; i < N && b_start != b_current; ++i)
     {
         tc_buffer[b_current++] = source[i];
@@ -190,6 +188,6 @@ int write_data(void *_src, int N)
         if (b_current > TC_BUF_SIZE)
             b_current = 0;
     }
-    pthread_mutex_unlock(&lock_buffer);
+    pthread_mutex_unlock(&lock_tc);
     return i;
 }
