@@ -40,12 +40,12 @@ void *sync_receiver(void *_srv_descriptor)
 
     while (1)
     {
-        if (read(server_descriptor, buffer, 2) < 1)
+        if (read(server_descriptor, buffer, 1) < 1)
             // die("Connection to the server was lost!");
             return NULL;
 
         // Received invalid data, do nothing
-        if (!(buffer[0] == 'f' && buffer[1] == 's'))
+        if (buffer[0] != '\a')
             continue;
 
         // Read the next two bytes to determine the size of the packet
@@ -55,7 +55,7 @@ void *sync_receiver(void *_srv_descriptor)
         data_size = *(uint16_t *)buffer;
 
         // Read the remaining data
-        if (read(server_descriptor, buffer, data_size - 2) < 1)
+        if (read(server_descriptor, buffer, data_size) < 1)
             die("Connection to the server was lost!");
 
         process_commands(buffer);
@@ -108,6 +108,7 @@ void process_commands(char *commands)
             tmp->lineno = 1;
             tmp->has_anchor = true;
             tmp->data = strdup(commands + 1);
+            tmp->prev = NULL;
             free(openfile->filebot->data);
             openfile->current = tmp;
             openfile->edittop = tmp;
