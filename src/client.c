@@ -32,6 +32,48 @@ typedef enum rt_command
     MOVE_CURSOR
 } rt_command;
 
+int send_packet(int descriptor, payload *p)
+{
+    char send_buffer[1024];
+    // +2 for the '\0' and the function
+    uint16_t payload_size = strlen(p->data) + 2;
+    // Frame start
+    send_buffer[0] = '\a';
+    // Payload size is bytes 1-2
+    *(uint16_t *)(send_buffer + 1) = payload_size;
+    // Function
+    send_buffer[3] = p->function;
+    // Data
+    memcpy(send_buffer + 4, p->data, payload_size);
+    // +3 for the frame start and payload size
+    return write(descriptor, send_buffer, payload_size + 3);
+}
+
+int retrieve_packet(int descriptor, payload *p)
+{
+    uint16_t size;
+    char recv_buffer[1024];
+    if (read(descriptor, recv_buffer, 1) < 1)
+        return -1;
+
+    // Check for the frame start
+    if (recv_buffer[0] != '\a')
+        return -1;
+
+    if (read_n(descriptor, recv_buffer, 2) < 1)
+        return -1;
+
+    size = *(uint16_t *)(recv_buffer);
+
+    // Read the function and its data
+    if (read_n(descriptor, recv_buffer, size) < 1)
+        return -1;
+
+    p->function = (rt_command)recv_buffer[0];
+    p->data = strdup(recv_buffer);
+    return 0;
+}
+
 void *sync_receiver(void *_srv_descriptor)
 {
     char buffer[1024];

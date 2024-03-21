@@ -14,4 +14,11 @@ void start_client();
 
 extern pthread_mutex_t lock_openfile;
 
+typedef struct payload
+{
+    uint8_t user_id;
+    rt_command function;
+    char *data;
+} payload;
+
 #endif
