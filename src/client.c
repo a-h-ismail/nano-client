@@ -49,7 +49,7 @@ int retrieve_packet(int descriptor, payload *p)
     if (read_n(descriptor, recv_buffer, 2) < 1)
         return -1;
 
-    size = READ_BIN(size, recv_buffer);
+    READ_BIN(size, recv_buffer);
 
     // Read the user_id, function and its data
     if (read_n(descriptor, recv_buffer, size) < 1)
@@ -199,14 +199,14 @@ int read_n(int fd, void *b, size_t n)
 // Reports the current cursor position, call after any cursor movement
 void report_cursor_move()
 {
-    char data[8];
+    char data[sizeof(size_t) * 2];
     WRITE_BIN(openfile->current_x, data);
-    WRITE_BIN(openfile->current_x, data + 4);
+    WRITE_BIN(openfile->current_y, data + sizeof(size_t));
 
     payload p;
     p.function = MOVE_CURSOR;
     p.data = data;
-    p.data_size = 8;
+    p.data_size = 16;
 
     send_packet(inter_thread_pipe[1], &p);
 }
