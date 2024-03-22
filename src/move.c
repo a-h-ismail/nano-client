@@ -19,6 +19,7 @@
  *                                                                        *
  **************************************************************************/
 
+#include "client.h"
 #include "prototypes.h"
 
 #include <string.h>
@@ -31,6 +32,9 @@ void to_first_line(void)
 	openfile->placewewant = 0;
 
 	refresh_needed = TRUE;
+
+		if (remote_buffer)
+		report_cursor_move();
 }
 
 /* Move to the last line of the file. */
@@ -48,6 +52,9 @@ void to_last_line(void)
 	recook |= perturbed;
 #endif
 	focusing = FALSE;
+
+		if (remote_buffer)
+		report_cursor_move();
 }
 
 /* Determine the actual current chunk and the target column. */
@@ -134,6 +141,8 @@ void do_page_up(void)
 	 * at the top of the file, so put the cursor there and get out. */
 	if (go_back_chunks(mustmove, &openfile->current, &leftedge) > 0) {
 		to_first_line();
+			if (remote_buffer)
+		report_cursor_move();
 		return;
 	}
 
@@ -142,6 +151,8 @@ void do_page_up(void)
 	/* Move the viewport so that the cursor stays immobile, if possible. */
 	adjust_viewport(STATIONARY);
 	refresh_needed = TRUE;
+		if (remote_buffer)
+		report_cursor_move();
 }
 
 /* Move down almost one screenful. */
@@ -166,6 +177,8 @@ void do_page_down(void)
 	 * at the bottom of the file, so put the cursor there and get out. */
 	if (go_forward_chunks(mustmove, &openfile->current, &leftedge) > 0) {
 		to_last_line();
+			if (remote_buffer)
+		report_cursor_move();
 		return;
 	}
 
@@ -174,6 +187,9 @@ void do_page_down(void)
 	/* Move the viewport so that the cursor stays immobile, if possible. */
 	adjust_viewport(STATIONARY);
 	refresh_needed = TRUE;
+
+		if (remote_buffer)
+		report_cursor_move();
 }
 
 #ifdef ENABLE_JUSTIFY
@@ -206,6 +222,9 @@ void to_para_begin(void)
 	do_para_begin(&openfile->current);
 	openfile->current_x = 0;
 
+		if (remote_buffer)
+		report_cursor_move();
+
 	edit_redraw(was_current, CENTERING);
 }
 
@@ -225,6 +244,8 @@ void to_para_end(void)
 		openfile->current_x = strlen(openfile->current->data);
 
 	edit_redraw(was_current, CENTERING);
+		if (remote_buffer)
+		report_cursor_move();
 #ifdef ENABLE_COLOR
 	recook |= perturbed;
 #endif
@@ -250,6 +271,8 @@ void to_prev_block(void)
 		openfile->current = openfile->current->next;
 
 	openfile->current_x = 0;
+		if (remote_buffer)
+		report_cursor_move();
 	edit_redraw(was_current, CENTERING);
 }
 
@@ -268,6 +291,8 @@ void to_next_block(void)
 	}
 
 	openfile->current_x = 0;
+		if (remote_buffer)
+		report_cursor_move();
 	edit_redraw(was_current, CENTERING);
 #ifdef ENABLE_COLOR
 	recook |= perturbed;
@@ -386,6 +411,9 @@ void to_prev_word(void)
 
 	do_prev_word();
 
+	if (remote_buffer)
+		report_cursor_move();
+
 	edit_redraw(was_current, FLOWING);
 }
 
@@ -396,6 +424,9 @@ void to_next_word(void)
 	linestruct *was_current = openfile->current;
 
 	do_next_word(ISSET(AFTER_ENDS));
+
+	if (remote_buffer)
+		report_cursor_move();
 
 	edit_redraw(was_current, FLOWING);
 }
@@ -458,6 +489,9 @@ void do_home(void)
 		edit_redraw(was_current, FLOWING);
 	else if (line_needs_update(was_column, openfile->placewewant))
 		update_line(openfile->current, openfile->current_x);
+
+	if (remote_buffer)
+		report_cursor_move();
 }
 
 /* Move to the end of the current line (or softwrapped chunk).
@@ -510,6 +544,9 @@ void do_end(void)
 		edit_redraw(was_current, FLOWING);
 	else if (line_needs_update(was_column, openfile->placewewant))
 		update_line(openfile->current, openfile->current_x);
+
+	if (remote_buffer)
+		report_cursor_move();
 }
 
 /* Move the cursor to the preceding line or chunk. */
@@ -533,6 +570,9 @@ void do_up(void)
 
 	/* <Up> should not change placewewant, so restore it. */
 	openfile->placewewant = leftedge + target_column;
+
+	if (remote_buffer)
+		report_cursor_move();
 }
 
 /* Move the cursor to next line or chunk. */
@@ -556,6 +596,9 @@ void do_down(void)
 
 	/* <Down> should not change placewewant, so restore it. */
 	openfile->placewewant = leftedge + target_column;
+
+	if (remote_buffer)
+		report_cursor_move();
 }
 
 #if !defined(NANO_TINY) || defined(ENABLE_HELP)
@@ -617,6 +660,9 @@ void do_left(void)
 	}
 
 	edit_redraw(was_current, FLOWING);
+
+	if (remote_buffer)
+		report_cursor_move();
 }
 
 /* Move right one character. */
@@ -639,4 +685,7 @@ void do_right(void)
 	}
 
 	edit_redraw(was_current, FLOWING);
+
+	if (remote_buffer)
+		report_cursor_move();
 }
