@@ -9,11 +9,14 @@ int b_start;
 int b_current;
 bool remote_buffer = false;
 bool download_done = false;
+int8_t my_id;
 
 // [0] for read, [1] for write
 int inter_thread_pipe[2];
+client_data clients[9];
+int client_count;
 
-void process_commands(char *commands);
+void process_commands(payload *p);
 pthread_mutex_t lock_openfile, lock_tc;
 
 int send_packet(int descriptor, payload *p)
@@ -65,37 +68,21 @@ int retrieve_packet(int descriptor, payload *p)
 
 void *sync_receiver(void *_srv_descriptor)
 {
-    char buffer[1024];
     uint16_t data_size;
     int server_descriptor = *(int *)_srv_descriptor;
+    payload p;
 
     while (1)
     {
-        if (read(server_descriptor, buffer, 1) < 1)
-            // die("Connection to the server was lost!");
-            return NULL;
-
-        // Received invalid data, do nothing
-        if (buffer[0] != '\a')
-            continue;
-
-        // Read the next two bytes to determine the size of the packet
-        if (read(server_descriptor, buffer, 2) < 1)
+        if (retrieve_packet(server_descriptor, &p) == -1)
             die("Connection to the server was lost!");
 
-        data_size = *(uint16_t *)buffer;
-
-        // Read the remaining data
-        if (read(server_descriptor, buffer, data_size) < 1)
-            die("Connection to the server was lost!");
-
-        process_commands(buffer);
+        process_commands(&p);
     }
 }
 
 void *sync_transmitter(void *_srv_descriptor)
 {
-    char buffer[1024];
     int server_descriptor = *(int *)_srv_descriptor;
     payload p;
 
@@ -106,25 +93,53 @@ void *sync_transmitter(void *_srv_descriptor)
     }
 }
 
-void process_commands(char *commands)
+void process_commands(payload *p)
 {
     rt_command function;
-    function = commands[0];
+    function = p->function;
     linestruct *tmp;
+    size_t x_y[2];
     // Lock the open file buffer from being modified
     pthread_mutex_lock(&lock_openfile);
 
     switch (function)
     {
+    case ADD_USER:
+        // If the user id is negative, the server is signaling that the absolute value is our ID
+        if (p->user_id < 0)
+            my_id = -p->user_id;
+        else
+        {
+            clients[client_count].user_id = p->user_id;
+            clients[client_count].name = strdup(p->data);
+            clients[client_count].current_line = NULL;
+            ++client_count;
+        }
+        break;
+
+    case REMOVE_USER:
+        for (int i = 0; i < client_count; ++i)
+        {
+            if (clients[i].user_id == p->user_id)
+            {
+                free(clients[i].name);
+                // Remove the client entry
+                memmove(clients + i, clients + i + 1, sizeof(clients) * (client_count - i - 1));
+                --client_count;
+                break;
+            }
+        }
+        break;
+
     case APPEND_LINE:
         tmp = make_new_node(openfile->filebot);
         tmp->next = NULL;
         // Case of the first empty line and the server having a non empty first line
-        if (openfile->filebot == openfile->filetop && strlen(openfile->filebot->data) == 0 && commands[1] != '\0')
+        if (openfile->filebot == openfile->filetop && strlen(openfile->filebot->data) == 0 && p->data[0] != '\0')
         {
             tmp->lineno = 1;
             tmp->has_anchor = true;
-            tmp->data = strdup(commands + 1);
+            tmp->data = strdup(p->data + 1);
             tmp->prev = NULL;
             free(openfile->filebot->data);
             openfile->current = tmp;
@@ -134,7 +149,7 @@ void process_commands(char *commands)
         else
         {
             tmp->lineno = openfile->filebot->lineno + 1;
-            tmp->data = strdup(commands + 1);
+            tmp->data = strdup(p->data + 1);
             openfile->filebot->next = tmp;
             openfile->filebot = tmp;
         }
@@ -142,6 +157,11 @@ void process_commands(char *commands)
     case END_APPEND:
         download_done = true;
         break;
+
+    case MOVE_CURSOR:
+        READ_BIN(x_y, p->data);
+        mvchgat(x_y[0], x_y[1], 1, A_REVERSE, 0, NULL);
+
     default:
         return;
     }
