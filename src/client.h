@@ -7,12 +7,14 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include "definitions.h"
 
 typedef struct sockaddr SA;
 
 typedef enum rt_command
 {
-    STATE,
+    ADD_USER,
+    REMOVE_USER,
     ADD_LINE,
     APPEND_LINE,
     END_APPEND,
@@ -24,11 +26,19 @@ typedef enum rt_command
 
 typedef struct payload
 {
-    uint8_t user_id;
+    uint16_t data_size;
+    int8_t user_id;
     rt_command function;
     char *data;
-    uint16_t data_size;
 } payload;
+
+typedef struct client_data
+{
+    size_t ypos;
+    char *name;
+    linestruct *current_line;
+    int8_t user_id;
+} client_data;
 
 // Read the data at ptr to the variable var
 #define READ_BIN(var, ptr) memcpy(&var, ptr, sizeof(var));
