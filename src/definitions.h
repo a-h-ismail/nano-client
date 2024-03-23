@@ -19,6 +19,8 @@
  *                                                                        *
  **************************************************************************/
 
+#ifndef DEFINITIONS_H
+#define DEFINITIONS_H
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -661,4 +663,6 @@ typedef struct completionstruct {
 	char *word;
 	struct completionstruct *next;
 } completionstruct;
+#endif
+
 #endif
