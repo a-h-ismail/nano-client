@@ -61,7 +61,7 @@ int retrieve_packet(int descriptor, payload *p)
     p->user_id = recv_buffer[0];
     p->function = (rt_command)recv_buffer[1];
     p->data = malloc(size - 2);
-    memcpy(p->data, recv_buffer + 5, size - 2);
+    memcpy(p->data, recv_buffer + 2, size - 2);
     p->data_size = size - 2;
     return 0;
 }
@@ -134,12 +134,14 @@ void process_commands(payload *p)
     case APPEND_LINE:
         tmp = make_new_node(openfile->filebot);
         tmp->next = NULL;
+        READ_BIN(tmp->id, p->data)
+        tmp->data = strdup(p->data + 4);
         // Case of the first empty line and the server having a non empty first line
         if (openfile->filebot == openfile->filetop && strlen(openfile->filebot->data) == 0 && p->data[0] != '\0')
         {
             tmp->lineno = 1;
             tmp->has_anchor = true;
-            tmp->data = strdup(p->data + 1);
+
             tmp->prev = NULL;
             free(openfile->filebot->data);
             openfile->current = tmp;
@@ -149,7 +151,7 @@ void process_commands(payload *p)
         else
         {
             tmp->lineno = openfile->filebot->lineno + 1;
-            tmp->data = strdup(p->data + 1);
+            tmp->data = strdup(p->data + 4);
             openfile->filebot->next = tmp;
             openfile->filebot = tmp;
         }
@@ -160,7 +162,6 @@ void process_commands(payload *p)
 
     case MOVE_CURSOR:
         READ_BIN(x_y, p->data);
-        mvchgat(x_y[0], x_y[1], 1, A_REVERSE, 0, NULL);
 
     default:
         return;
