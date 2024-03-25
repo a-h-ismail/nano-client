@@ -29,7 +29,7 @@ int send_packet(int descriptor, payload *p)
     // Payload size is bytes 1-2
     WRITE_BIN(payload_size, send_buffer + 1);
 
-    send_buffer[3] = p->user_id;
+    send_buffer[3] = my_id;
     // Function
     send_buffer[4] = p->function;
     // Data
@@ -162,9 +162,6 @@ void process_commands(payload *p)
 
     case MOVE_CURSOR:
         READ_BIN(x_y, p->data);
-
-    default:
-        return;
     }
 
     pthread_mutex_unlock(&lock_openfile);
@@ -198,6 +195,8 @@ void start_client()
     // Start the sync client transmitter and receiver
     pthread_create(&transmitter, &thread_attr, sync_transmitter, &server_descriptor);
     pthread_create(&receiver, &thread_attr, sync_receiver, &server_descriptor);
+    pthread_detach(transmitter);
+    pthread_detach(receiver);
     return;
 }
 
