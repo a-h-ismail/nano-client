@@ -20,6 +20,7 @@
  *                                                                        *
  **************************************************************************/
 
+#include "client.h"
 #include "prototypes.h"
 
 #include <string.h>
@@ -126,6 +127,9 @@ void do_delete(void)
 		while (openfile->current->data[openfile->current_x] != '\0' &&
 				is_zerowidth(openfile->current->data + openfile->current_x))
 			do_deletion(DEL);
+
+		if (remote_buffer)
+			report_deletion();
 #endif
 	}
 }
@@ -139,12 +143,19 @@ void do_backspace(void)
 		zap_text();
 	else
 #endif
-	if (openfile->current_x > 0) {
-		openfile->current_x = step_left(openfile->current->data, openfile->current_x);
-		do_deletion(BACK);
-	} else if (openfile->current != openfile->filetop) {
-		do_left();
-		do_deletion(BACK);
+	{
+		if (openfile->current_x > 0)
+		{
+			openfile->current_x = step_left(openfile->current->data, openfile->current_x);
+			do_deletion(BACK);
+		}
+		else if (openfile->current != openfile->filetop)
+		{
+			do_left();
+			do_deletion(BACK);
+		}
+		if (remote_buffer)
+			report_deletion();
 	}
 }
 
