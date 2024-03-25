@@ -1470,6 +1470,9 @@ void inject(char *burst, size_t count)
 	size_t original_row = 0;
 	size_t old_amount = 0;
 
+	if (remote_buffer)
+		report_insertion(burst);
+
 	if (ISSET(SOFTWRAP)) {
 		if (openfile->current_y == editwinrows - 1)
 			original_row = chunk_for(xplustabs(), thisline);
