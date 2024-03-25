@@ -59,6 +59,12 @@ void start_client();
 
 void report_cursor_move();
 
+void report_insertion(char *burst);
+
+void report_deletion();
+
 extern pthread_mutex_t lock_openfile;
+
+extern openfilestruct *openfile;
 
 #endif

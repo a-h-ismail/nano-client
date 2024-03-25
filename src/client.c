@@ -19,6 +19,19 @@ int client_count;
 void process_commands(payload *p);
 pthread_mutex_t lock_openfile, lock_tc;
 
+linestruct *find_line_by_id(int32_t id)
+{
+    linestruct *match = openfile->filetop;
+    while (match != NULL)
+    {
+        if (match->id == id)
+            break;
+        else
+            match = match->next;
+    }
+    return match;
+}
+
 int send_packet(int descriptor, payload *p)
 {
     char send_buffer[1024];
@@ -68,7 +81,6 @@ int retrieve_packet(int descriptor, payload *p)
 
 void *sync_receiver(void *_srv_descriptor)
 {
-    uint16_t data_size;
     int server_descriptor = *(int *)_srv_descriptor;
     payload p;
 
@@ -111,7 +123,6 @@ void process_commands(payload *p)
         else
         {
             clients[client_count].user_id = p->user_id;
-            clients[client_count].name = strdup(p->data);
             clients[client_count].current_line = NULL;
             ++client_count;
         }
@@ -160,10 +171,42 @@ void process_commands(payload *p)
         download_done = true;
         break;
 
+    case ADD_STR:
+    {
+        linestruct *target;
+        int32_t target_id, column, puddle_len = p->data_size - 8;
+        READ_BIN(target_id, p->data)
+        READ_BIN(column, p->data + 4)
+        target = find_line_by_id(target_id);
+        // Make room for the substring
+        target->data = nrealloc(target->data, strlen(target->data) + puddle_len + 1);
+        memmove(target->data + column + puddle_len, target->data + column, strlen(target->data) - column - puddle_len + 2);
+        memcpy(target->data + column, p->data + 8, puddle_len);
+    }
+    break;
+
+    case REMOVE_STR:
+    {
+        linestruct *target;
+        int32_t target_id, column, count;
+        READ_BIN(target_id, p->data)
+        READ_BIN(column, p->data + 4)
+        READ_BIN(count, p->data + 8)
+        target = find_line_by_id(target_id);
+        // Remove the characters by moving the remaining part of the string
+        memmove(target->data + column, target->data + column + count, strlen(target->data) - column - count + 1);
+        target->data = nrealloc(target->data, strlen(target->data) + 1);
+    }
+    break;
+
     case MOVE_CURSOR:
         READ_BIN(x_y, p->data);
     }
 
+    if (download_done)
+        draw_all_subwindows();
+
+    free(p->data);
     pthread_mutex_unlock(&lock_openfile);
 }
 
@@ -228,5 +271,35 @@ void report_cursor_move()
     p.data = data;
     p.data_size = 16;
 
+    send_packet(inter_thread_pipe[1], &p);
+}
+
+void report_insertion(char *burst)
+{
+    payload p;
+    p.function = ADD_STR;
+    p.data_size = 8 + strlen(burst);
+    p.data = malloc(p.data_size);
+    WRITE_BIN(openfile->current->id, p.data)
+    // This is to cast the value to a 4 byte variable and use it in the macro
+    int32_t x = openfile->current_x;
+    WRITE_BIN(x, p.data + 4)
+    strncpy(p.data + 8, burst, strlen(burst));
+    send_packet(inter_thread_pipe[1], &p);
+}
+
+void report_deletion()
+{
+    payload p;
+    p.function = REMOVE_STR;
+    p.data_size = 12;
+    p.data = malloc(p.data_size);
+    WRITE_BIN(openfile->current->id, p.data)
+    // This is to cast the value to a 4 byte variable and use it in the macro
+    int32_t tmp = openfile->current_x;
+
+    WRITE_BIN(tmp, p.data + 4)
+    tmp = 1;
+    WRITE_BIN(tmp, p.data + 8)
     send_packet(inter_thread_pipe[1], &p);
 }
