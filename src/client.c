@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <string.h>
+#include <sys/random.h>
 #include "client.h"
 #include "prototypes.h"
 
@@ -30,6 +31,14 @@ linestruct *find_line_by_id(int32_t id)
             match = match->next;
     }
     return match;
+}
+
+// A high quality rand alternative
+int32_t good_rand()
+{
+    static int32_t value;
+    getrandom(&value, sizeof(value), 0);
+    return value;
 }
 
 int send_packet(int descriptor, payload *p)
@@ -88,8 +97,8 @@ void *sync_receiver(void *_srv_descriptor)
     {
         if (retrieve_packet(server_descriptor, &p) == -1)
             die("Connection to the server was lost!");
-
-        process_commands(&p);
+        else
+            process_commands(&p);
     }
 }
 
@@ -100,8 +109,13 @@ void *sync_transmitter(void *_srv_descriptor)
 
     while (1)
     {
-        retrieve_packet(inter_thread_pipe[0], &p);
-        send_packet(server_descriptor, &p);
+        if (retrieve_packet(inter_thread_pipe[0], &p) == -1)
+            die("Broken thread communication pipe!\n");
+        else
+        {
+            send_packet(server_descriptor, &p);
+            free(p.data);
+        }
     }
 }
 
@@ -171,6 +185,46 @@ void process_commands(payload *p)
         download_done = true;
         break;
 
+    case ADD_LINE:
+    {
+        linestruct *target, *newline;
+        int32_t after_id, with_id;
+        READ_BIN(after_id, p->data)
+        READ_BIN(with_id, p->data + 4)
+        target = find_line_by_id(after_id);
+        newline = make_new_node(target);
+        // Relink the target
+        newline->next = target->next;
+        newline->prev = target;
+        newline->next->prev = newline;
+        target->next = newline;
+        newline->id = with_id;
+        // If data size is 8, no string to initialize the line
+        if (p->data_size == 8)
+            newline->data = strdup("");
+        else
+        {
+            newline->data = malloc(p->data_size - 7);
+            newline->data = strncpy(newline->data, p->data + 8, p->data_size - 8);
+            newline->data[p->data_size - 8] = '\0';
+        }
+        renumber_from(target);
+    }
+    break;
+
+    case REPLACE_LINE:
+    {
+        linestruct *target;
+        int32_t target_id;
+        READ_BIN(target_id, p->data)
+        target = find_line_by_id(target_id);
+        free(target->data);
+        target->data = malloc(p->data_size - 3);
+        strncpy(target->data, p->data + 4, p->data_size - 4);
+        target->data[p->data_size - 4] = '\0';
+    }
+    break;
+
     case ADD_STR:
     {
         linestruct *target;
@@ -193,9 +247,38 @@ void process_commands(payload *p)
         READ_BIN(column, p->data + 4)
         READ_BIN(count, p->data + 8)
         target = find_line_by_id(target_id);
-        // Remove the characters by moving the remaining part of the string
-        memmove(target->data + column, target->data + column + count, strlen(target->data) - column - count + 1);
-        target->data = nrealloc(target->data, strlen(target->data) + 1);
+        // Remove line break and merge with previous line
+        if (column == -1)
+        {
+            linestruct *prev = target->prev;
+            if (prev == NULL)
+                break;
+            if (count > 1)
+                memmove(target->data, target->data + count - 1, strlen(target->data + count - 1) + 1);
+            prev->data = realloc(prev->data, strlen(prev->data) + strlen(target->data) + 1);
+            strcat(prev->data, target->data);
+            unlink_node(target);
+            renumber_from(prev);
+        }
+        // Remove line break and merge with next line
+        else if (column + count >= strlen(target->data))
+        {
+            linestruct *next = target->next;
+            if (next == NULL)
+                break;
+            target->data = realloc(target->data, strlen(target->data) + strlen(next->data) + 1);
+            strcat(target->data, next->data);
+            --count;
+            memmove(target->data + column, target->data + column + count, strlen(target->data + column + count) + 1);
+            unlink_node(next);
+            renumber_from(target);
+        }
+        else
+        {
+            // Remove the characters by moving the remaining part of the string
+            memmove(target->data + column, target->data + column + count, strlen(target->data) - column - count + 1);
+            target->data = nrealloc(target->data, strlen(target->data) + 1);
+        }
     }
     break;
 
@@ -247,7 +330,7 @@ void start_client()
 int read_n(int fd, void *b, size_t n)
 {
     int last, total;
-    last = total = 0;
+    total = 0;
     while (total < n)
     {
         last = read(fd, (char *)b + total, n);
@@ -279,7 +362,8 @@ void report_insertion(char *burst)
     payload p;
     p.function = ADD_STR;
     p.data_size = 8 + strlen(burst);
-    p.data = malloc(p.data_size);
+    char buffer[p.data_size];
+    p.data = buffer;
     WRITE_BIN(openfile->current->id, p.data)
     // This is to cast the value to a 4 byte variable and use it in the macro
     int32_t x = openfile->current_x;
@@ -288,18 +372,48 @@ void report_insertion(char *burst)
     send_packet(inter_thread_pipe[1], &p);
 }
 
-void report_deletion()
+void report_deletion(bool is_backspace)
 {
     payload p;
     p.function = REMOVE_STR;
     p.data_size = 12;
-    p.data = malloc(p.data_size);
+    char buffer[p.data_size];
+    p.data = buffer;
     WRITE_BIN(openfile->current->id, p.data)
-    // This is to cast the value to a 4 byte variable and use it in the macro
     int32_t tmp = openfile->current_x;
+
+    if (is_backspace)
+        --tmp;
 
     WRITE_BIN(tmp, p.data + 4)
     tmp = 1;
     WRITE_BIN(tmp, p.data + 8)
+    send_packet(inter_thread_pipe[1], &p);
+}
+
+void report_enter()
+{
+    // Since a line broke into two and maybe nano was configured to auto-indent
+    // The easiest way is to tell the server what the old line became and the content of the new line
+    payload p;
+    p.function = REPLACE_LINE;
+    p.data_size = 4 + strlen(openfile->current->prev->data);
+    char original_line[p.data_size];
+    strncpy(original_line + 4, openfile->current->prev->data, p.data_size - 4);
+    p.data = original_line;
+    WRITE_BIN(openfile->current->prev->id, p.data)
+    // Send the line replacement command
+    send_packet(inter_thread_pipe[1], &p);
+
+    // Now send the new line
+    p.function = ADD_LINE;
+    p.data_size = 8 + strlen(openfile->current->data);
+    char new_line[p.data_size - 8];
+    p.data = new_line;
+    WRITE_BIN(openfile->current->prev->id, p.data)
+    openfile->current->id = good_rand();
+    WRITE_BIN(openfile->current->id, p.data + 4)
+    strncpy(new_line + 8, openfile->current->data, p.data_size - 8);
+    // Send the new line
     send_packet(inter_thread_pipe[1], &p);
 }
