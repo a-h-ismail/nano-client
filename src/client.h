@@ -16,11 +16,12 @@ typedef enum rt_command
     ADD_USER,
     REMOVE_USER,
     ADD_LINE,
+    REMOVE_LINE,
+    REPLACE_LINE,
     APPEND_LINE,
     END_APPEND,
     ADD_STR,
     REMOVE_STR,
-    REMOVE_LINE,
     MOVE_CURSOR
 } rt_command;
 
@@ -61,7 +62,9 @@ void report_cursor_move();
 
 void report_insertion(char *burst);
 
-void report_deletion();
+void report_deletion(bool is_backspace);
+
+void report_enter();
 
 extern pthread_mutex_t lock_openfile;
 
