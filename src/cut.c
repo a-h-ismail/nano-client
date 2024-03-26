@@ -129,7 +129,7 @@ void do_delete(void)
 			do_deletion(DEL);
 
 		if (remote_buffer)
-			report_deletion();
+			report_deletion(false);
 #endif
 	}
 }
@@ -144,6 +144,8 @@ void do_backspace(void)
 	else
 #endif
 	{
+		if (remote_buffer)
+			report_deletion(true);
 		if (openfile->current_x > 0)
 		{
 			openfile->current_x = step_left(openfile->current->data, openfile->current_x);
@@ -154,8 +156,6 @@ void do_backspace(void)
 			do_left();
 			do_deletion(BACK);
 		}
-		if (remote_buffer)
-			report_deletion();
 	}
 }
 
