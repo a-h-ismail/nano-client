@@ -23,6 +23,7 @@
  *                                                                        *
  **************************************************************************/
 
+#include "client.h"
 #include "prototypes.h"
 
 #include <errno.h>
@@ -921,6 +922,9 @@ void do_enter(void)
 
 	refresh_needed = TRUE;
 	focusing = FALSE;
+
+	if (remote_buffer)
+		report_enter();
 }
 
 #ifndef NANO_TINY
