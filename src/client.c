@@ -119,171 +119,196 @@ void *sync_transmitter(void *_srv_descriptor)
     }
 }
 
+void exec_add_user(payload *p)
+{
+    // If the user id is negative, the server is signaling that the absolute value is our ID
+    if (p->user_id < 0)
+        my_id = -p->user_id;
+    else
+    {
+        clients[client_count].user_id = p->user_id;
+        clients[client_count].current_line = NULL;
+        ++client_count;
+    }
+}
+
+void exec_remove_user(payload *p)
+{
+    for (int i = 0; i < client_count; ++i)
+    {
+        if (clients[i].user_id == p->user_id)
+        {
+            free(clients[i].name);
+            // Remove the client entry
+            memmove(clients + i, clients + i + 1, sizeof(clients) * (client_count - i - 1));
+            --client_count;
+            break;
+        }
+    }
+}
+
+void exec_append_line(payload *p)
+{
+    linestruct *new_line;
+    new_line = make_new_node(openfile->filebot);
+    new_line->next = NULL;
+    READ_BIN(new_line->id, p->data)
+    new_line->data = strdup(p->data + 4);
+    // Case of the first empty line and the server having a non empty first line
+    if (openfile->filebot == openfile->filetop && strlen(openfile->filebot->data) == 0 && p->data[0] != '\0')
+    {
+        new_line->lineno = 1;
+        new_line->has_anchor = true;
+
+        new_line->prev = NULL;
+        free(openfile->filebot->data);
+        openfile->current = new_line;
+        openfile->edittop = new_line;
+        openfile->filetop = openfile->filebot = new_line;
+    }
+    else
+    {
+        new_line->lineno = openfile->filebot->lineno + 1;
+        new_line->data = strdup(p->data + 4);
+        openfile->filebot->next = new_line;
+        openfile->filebot = new_line;
+    }
+}
+
+void exec_add_line(payload *p)
+{
+    linestruct *target, *newline;
+    int32_t after_id, with_id;
+    READ_BIN(after_id, p->data)
+    READ_BIN(with_id, p->data + 4)
+    target = find_line_by_id(after_id);
+    newline = make_new_node(target);
+    // Relink the target
+    newline->next = target->next;
+    newline->prev = target;
+    if (newline->next != NULL)
+            newline->next->prev = newline;
+    target->next = newline;
+    newline->id = with_id;
+    // If data size is 8, no string to initialize the line
+    if (p->data_size == 8)
+        newline->data = strdup("");
+    else
+    {
+        newline->data = malloc(p->data_size - 7);
+        newline->data = strncpy(newline->data, p->data + 8, p->data_size - 8);
+        newline->data[p->data_size - 8] = '\0';
+    }
+    renumber_from(target);
+}
+
+void exec_replace_line(payload *p)
+{
+    linestruct *target;
+    int32_t target_id;
+    READ_BIN(target_id, p->data)
+    target = find_line_by_id(target_id);
+    free(target->data);
+    target->data = malloc(p->data_size - 3);
+    strncpy(target->data, p->data + 4, p->data_size - 4);
+    target->data[p->data_size - 4] = '\0';
+}
+
+void exec_add_string(payload *p)
+{
+    linestruct *target;
+    int32_t target_id, column, puddle_len = p->data_size - 8;
+    READ_BIN(target_id, p->data)
+    READ_BIN(column, p->data + 4)
+    target = find_line_by_id(target_id);
+    // Make room for the substring
+    target->data = nrealloc(target->data, strlen(target->data) + puddle_len + 1);
+    memmove(target->data + column + puddle_len, target->data + column, strlen(target->data) - column - puddle_len + 2);
+    memcpy(target->data + column, p->data + 8, puddle_len);
+}
+
+void exec_remove_string(payload *p)
+{
+    linestruct *target;
+    int32_t target_id, column, count;
+    READ_BIN(target_id, p->data)
+    READ_BIN(column, p->data + 4)
+    READ_BIN(count, p->data + 8)
+    target = find_line_by_id(target_id);
+    // Remove line break and merge with previous line
+    if (column == -1)
+    {
+        linestruct *prev = target->prev;
+        if (prev == NULL)
+            return;
+        if (count > 1)
+            memmove(target->data, target->data + count - 1, strlen(target->data + count - 1) + 1);
+        prev->data = realloc(prev->data, strlen(prev->data) + strlen(target->data) + 1);
+        strcat(prev->data, target->data);
+        unlink_node(target);
+        renumber_from(prev);
+    }
+    // Remove line break and merge with next line
+    else if (column + count >= strlen(target->data))
+    {
+        linestruct *next = target->next;
+        if (next == NULL)
+            return;
+        target->data = realloc(target->data, strlen(target->data) + strlen(next->data) + 1);
+        strcat(target->data, next->data);
+        --count;
+        memmove(target->data + column, target->data + column + count, strlen(target->data + column + count) + 1);
+        unlink_node(next);
+        renumber_from(target);
+    }
+    else
+    {
+        // Remove the characters by moving the remaining part of the string
+        memmove(target->data + column, target->data + column + count, strlen(target->data) - column - count + 1);
+        target->data = nrealloc(target->data, strlen(target->data) + 1);
+    }
+}
+
 void process_commands(payload *p)
 {
-    rt_command function;
-    function = p->function;
-    linestruct *tmp;
-    size_t x_y[2];
-    // Lock the open file buffer from being modified
+    // Lock the open file buffer to block the main thread from editing it
     pthread_mutex_lock(&lock_openfile);
 
-    switch (function)
+    switch (p->function)
     {
     case ADD_USER:
-        // If the user id is negative, the server is signaling that the absolute value is our ID
-        if (p->user_id < 0)
-            my_id = -p->user_id;
-        else
-        {
-            clients[client_count].user_id = p->user_id;
-            clients[client_count].current_line = NULL;
-            ++client_count;
-        }
+        exec_add_user(p);
         break;
 
     case REMOVE_USER:
-        for (int i = 0; i < client_count; ++i)
-        {
-            if (clients[i].user_id == p->user_id)
-            {
-                free(clients[i].name);
-                // Remove the client entry
-                memmove(clients + i, clients + i + 1, sizeof(clients) * (client_count - i - 1));
-                --client_count;
-                break;
-            }
-        }
+        exec_remove_user(p);
         break;
 
     case APPEND_LINE:
-        tmp = make_new_node(openfile->filebot);
-        tmp->next = NULL;
-        READ_BIN(tmp->id, p->data)
-        tmp->data = strdup(p->data + 4);
-        // Case of the first empty line and the server having a non empty first line
-        if (openfile->filebot == openfile->filetop && strlen(openfile->filebot->data) == 0 && p->data[0] != '\0')
-        {
-            tmp->lineno = 1;
-            tmp->has_anchor = true;
+        exec_append_line(p);
 
-            tmp->prev = NULL;
-            free(openfile->filebot->data);
-            openfile->current = tmp;
-            openfile->edittop = tmp;
-            openfile->filetop = openfile->filebot = tmp;
-        }
-        else
-        {
-            tmp->lineno = openfile->filebot->lineno + 1;
-            tmp->data = strdup(p->data + 4);
-            openfile->filebot->next = tmp;
-            openfile->filebot = tmp;
-        }
         break;
     case END_APPEND:
         download_done = true;
         break;
 
     case ADD_LINE:
-    {
-        linestruct *target, *newline;
-        int32_t after_id, with_id;
-        READ_BIN(after_id, p->data)
-        READ_BIN(with_id, p->data + 4)
-        target = find_line_by_id(after_id);
-        newline = make_new_node(target);
-        // Relink the target
-        newline->next = target->next;
-        newline->prev = target;
-        newline->next->prev = newline;
-        target->next = newline;
-        newline->id = with_id;
-        // If data size is 8, no string to initialize the line
-        if (p->data_size == 8)
-            newline->data = strdup("");
-        else
-        {
-            newline->data = malloc(p->data_size - 7);
-            newline->data = strncpy(newline->data, p->data + 8, p->data_size - 8);
-            newline->data[p->data_size - 8] = '\0';
-        }
-        renumber_from(target);
-    }
-    break;
+        exec_add_line(p);
+        break;
 
     case REPLACE_LINE:
-    {
-        linestruct *target;
-        int32_t target_id;
-        READ_BIN(target_id, p->data)
-        target = find_line_by_id(target_id);
-        free(target->data);
-        target->data = malloc(p->data_size - 3);
-        strncpy(target->data, p->data + 4, p->data_size - 4);
-        target->data[p->data_size - 4] = '\0';
-    }
-    break;
+        exec_replace_line(p);
+        break;
 
     case ADD_STR:
-    {
-        linestruct *target;
-        int32_t target_id, column, puddle_len = p->data_size - 8;
-        READ_BIN(target_id, p->data)
-        READ_BIN(column, p->data + 4)
-        target = find_line_by_id(target_id);
-        // Make room for the substring
-        target->data = nrealloc(target->data, strlen(target->data) + puddle_len + 1);
-        memmove(target->data + column + puddle_len, target->data + column, strlen(target->data) - column - puddle_len + 2);
-        memcpy(target->data + column, p->data + 8, puddle_len);
-    }
-    break;
+        exec_add_string(p);
+        break;
 
     case REMOVE_STR:
-    {
-        linestruct *target;
-        int32_t target_id, column, count;
-        READ_BIN(target_id, p->data)
-        READ_BIN(column, p->data + 4)
-        READ_BIN(count, p->data + 8)
-        target = find_line_by_id(target_id);
-        // Remove line break and merge with previous line
-        if (column == -1)
-        {
-            linestruct *prev = target->prev;
-            if (prev == NULL)
-                break;
-            if (count > 1)
-                memmove(target->data, target->data + count - 1, strlen(target->data + count - 1) + 1);
-            prev->data = realloc(prev->data, strlen(prev->data) + strlen(target->data) + 1);
-            strcat(prev->data, target->data);
-            unlink_node(target);
-            renumber_from(prev);
-        }
-        // Remove line break and merge with next line
-        else if (column + count >= strlen(target->data))
-        {
-            linestruct *next = target->next;
-            if (next == NULL)
-                break;
-            target->data = realloc(target->data, strlen(target->data) + strlen(next->data) + 1);
-            strcat(target->data, next->data);
-            --count;
-            memmove(target->data + column, target->data + column + count, strlen(target->data + column + count) + 1);
-            unlink_node(next);
-            renumber_from(target);
-        }
-        else
-        {
-            // Remove the characters by moving the remaining part of the string
-            memmove(target->data + column, target->data + column + count, strlen(target->data) - column - count + 1);
-            target->data = nrealloc(target->data, strlen(target->data) + 1);
-        }
-    }
-    break;
+        exec_remove_string(p);
+        break;
 
     case MOVE_CURSOR:
-        READ_BIN(x_y, p->data);
     }
 
     if (download_done)
