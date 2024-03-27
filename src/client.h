@@ -35,7 +35,7 @@ typedef struct payload
 
 typedef struct client_data
 {
-    size_t ypos;
+    int32_t xpos;
     char *name;
     linestruct *current_line;
     int8_t user_id;
@@ -49,6 +49,9 @@ typedef struct client_data
 
 extern bool remote_buffer;
 extern bool download_done;
+
+extern client_data clients[];
+extern int client_count;
 
 int read_data(void *_dest, int N);
 

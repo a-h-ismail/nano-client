@@ -274,6 +274,19 @@ void exec_remove_string(payload *p)
     }
 }
 
+void exec_move_cursor(payload *p)
+{
+    int i;
+    for (i = 0; i < client_count; ++i)
+        if (p->user_id == clients[i].user_id)
+            break;
+
+    int32_t id;
+    READ_BIN(id, p->data)
+    clients[i].current_line = find_line_by_id(id);
+    READ_BIN(clients[i].xpos, p->data + 4)
+}
+
 void process_commands(payload *p)
 {
     // Lock the open file buffer to block the main thread from editing it
@@ -311,6 +324,10 @@ void process_commands(payload *p)
 
     case REMOVE_STR:
         exec_remove_string(p);
+        break;
+
+    case MOVE_CURSOR:
+        exec_move_cursor(p);
         break;
     }
 
@@ -372,14 +389,18 @@ int read_n(int fd, void *b, size_t n)
 // Reports the current cursor position, call after any cursor movement
 void report_cursor_move()
 {
-    char data[sizeof(size_t) * 2];
-    WRITE_BIN(openfile->current_x, data);
-    WRITE_BIN(openfile->current_y, data + sizeof(size_t));
+    char data[8];
+    int32_t tmp;
+
+    tmp = openfile->current->id;
+    WRITE_BIN(tmp, data)
+    tmp = openfile->current_x;
+    WRITE_BIN(tmp, data + 4)
 
     payload p;
     p.function = MOVE_CURSOR;
     p.data = data;
-    p.data_size = 16;
+    p.data_size = sizeof(data);
 
     send_packet(inter_thread_pipe[1], &p);
 }
