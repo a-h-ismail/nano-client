@@ -98,7 +98,10 @@ void *sync_receiver(void *_srv_descriptor)
         if (retrieve_packet(server_descriptor, &p) == -1)
             die("Connection to the server was lost!");
         else
+        {
             process_commands(&p);
+            free(p.data);
+        }
     }
 }
 
@@ -169,7 +172,6 @@ void exec_append_line(payload *p)
     else
     {
         new_line->lineno = openfile->filebot->lineno + 1;
-        new_line->data = strdup(p->data + 4);
         openfile->filebot->next = new_line;
         openfile->filebot = new_line;
     }
@@ -212,6 +214,9 @@ void exec_replace_line(payload *p)
     target->data = malloc(p->data_size - 3);
     strncpy(target->data, p->data + 4, p->data_size - 4);
     target->data[p->data_size - 4] = '\0';
+    // In case the cursor went out of bound of the replacement line, set it at the last position
+    if (openfile->current_x == target->lineno && openfile->current_y > strlen(target->data))
+        openfile->current_y = strlen(target->data) - 1;
 }
 
 void exec_add_string(payload *p)
@@ -286,8 +291,8 @@ void process_commands(payload *p)
 
     case APPEND_LINE:
         exec_append_line(p);
-
         break;
+
     case END_APPEND:
         download_done = true;
         break;
@@ -307,14 +312,11 @@ void process_commands(payload *p)
     case REMOVE_STR:
         exec_remove_string(p);
         break;
-
-    case MOVE_CURSOR:
     }
 
     if (download_done)
         draw_all_subwindows();
 
-    free(p->data);
     pthread_mutex_unlock(&lock_openfile);
 }
 
@@ -433,7 +435,7 @@ void report_enter()
     // Now send the new line
     p.function = ADD_LINE;
     p.data_size = 8 + strlen(openfile->current->data);
-    char new_line[p.data_size - 8];
+    char new_line[p.data_size];
     p.data = new_line;
     WRITE_BIN(openfile->current->prev->id, p.data)
     openfile->current->id = good_rand();
