@@ -120,6 +120,16 @@ void delete_node(linestruct *line)
 /* Disconnect a node from a linked list of linestructs and delete it. */
 void unlink_node(linestruct *line)
 {
+	/* If the node to remove is the current node, change it to something else */
+	if (openfile->current == line)
+	{
+		if (line->prev != NULL)
+			openfile->current = line->prev;
+		else if (line->next != NULL)
+			openfile->current = line->next;
+		else
+			return;
+	}
 	if (line->prev != NULL)
 		line->prev->next = line->next;
 	if (line->next != NULL)
