@@ -120,15 +120,31 @@ void delete_node(linestruct *line)
 /* Disconnect a node from a linked list of linestructs and delete it. */
 void unlink_node(linestruct *line)
 {
-	/* If the node to remove is the current node, change it to something else */
-	if (openfile->current == line)
+	if (remote_buffer)
 	{
-		if (line->prev != NULL)
-			openfile->current = line->prev;
-		else if (line->next != NULL)
-			openfile->current = line->next;
-		else
-			return;
+		/* If the node to remove is the current node or edittop, change it to something else */
+		if (openfile->current == line)
+		{
+			if (line->prev != NULL)
+				openfile->current = line->prev;
+			else if (line->next != NULL)
+				openfile->current = line->next;
+			else
+				return;
+		}
+		if (openfile->edittop == line)
+		{
+			if (line->prev != NULL)
+				openfile->edittop = line->prev;
+			else if (line->next != NULL)
+				openfile->edittop = line->next;
+			else
+				return;
+		}
+		// Check if any other user had a reference to this line
+		for (int i = 0; i < client_count; ++i)
+			if (clients[i].current_line == line)
+				clients[i].current_line = NULL;
 	}
 	if (line->prev != NULL)
 		line->prev->next = line->next;
