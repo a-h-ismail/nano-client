@@ -342,7 +342,7 @@ void start_client()
 {
     pthread_attr_t thread_attr;
     pthread_mutexattr_t mtx_attr;
-    pthread_t transmitter, receiver;
+    pthread_t transmitter, receiver, cursor_monitor;
     pthread_mutexattr_init(&mtx_attr);
     pthread_mutex_init(&lock_openfile, &mtx_attr);
     pthread_mutex_init(&lock_tc, &mtx_attr);
@@ -365,8 +365,10 @@ void start_client()
     // Start the sync client transmitter and receiver
     pthread_create(&transmitter, &thread_attr, sync_transmitter, &server_descriptor);
     pthread_create(&receiver, &thread_attr, sync_receiver, &server_descriptor);
+    pthread_create(&cursor_monitor, &thread_attr, report_cursor_move, NULL);
     pthread_detach(transmitter);
     pthread_detach(receiver);
+    pthread_detach(cursor_monitor);
     return;
 }
 
@@ -387,22 +389,27 @@ int read_n(int fd, void *b, size_t n)
 }
 
 // Reports the current cursor position, call after any cursor movement
-void report_cursor_move()
+void *report_cursor_move(void *nothing)
 {
     char data[8];
-    int32_t tmp;
-
-    tmp = openfile->current->id;
-    WRITE_BIN(tmp, data)
-    tmp = openfile->current_x;
-    WRITE_BIN(tmp, data + 4)
-
+    int32_t prev_id, prev_x;
     payload p;
     p.function = MOVE_CURSOR;
     p.data = data;
     p.data_size = sizeof(data);
 
-    send_packet(inter_thread_pipe[1], &p);
+    while (1)
+    {
+        if (openfile->current->id != prev_id || openfile->current_x != prev_x)
+        {
+            prev_id = openfile->current->id;
+            WRITE_BIN(prev_id, data)
+            prev_x = openfile->current_x;
+            WRITE_BIN(prev_x, data + 4)
+            send_packet(inter_thread_pipe[1], &p);
+        }
+        usleep(50000);
+    }
 }
 
 void report_insertion(char *burst)

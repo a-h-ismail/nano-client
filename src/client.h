@@ -61,7 +61,7 @@ int write_data(void *_dest, int N);
 
 void start_client();
 
-void report_cursor_move();
+void *report_cursor_move(void *);
 
 void report_insertion(char *burst);
 
