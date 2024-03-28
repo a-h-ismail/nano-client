@@ -19,6 +19,7 @@
  *                                                                        *
  **************************************************************************/
 
+#include "client.h"
 #include "prototypes.h"
 #include "revision.h"
 
@@ -3437,6 +3438,18 @@ void edit_refresh(void)
 	statusline(INFO, "Refresh: %.1f ms", 1000 * (double)(clock() - start) / CLOCKS_PER_SEC);
 #endif
 
+	if (remote_buffer)
+	{
+		for (int i = 0; i < client_count; ++i)
+			if (clients[i].current_line != NULL)
+			{
+				int calculated_y = clients[i].current_line->lineno - openfile->edittop->lineno;
+				if (calculated_y > 0 && calculated_y < editwinrows)
+				{
+					mvwchgat(midwin, calculated_y, clients[i].xpos, 1, A_REVERSE, 0, NULL);
+				}
+			}
+	}
 	place_the_cursor();
 	wnoutrefresh(midwin);
 
