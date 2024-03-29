@@ -332,7 +332,10 @@ void process_commands(payload *p)
     }
 
     if (download_done)
-        draw_all_subwindows();
+    {
+        edit_refresh();
+        doupdate();
+    }
 
     pthread_mutex_unlock(&lock_openfile);
 }
@@ -369,6 +372,9 @@ void start_client()
     pthread_detach(transmitter);
     pthread_detach(receiver);
     pthread_detach(cursor_monitor);
+
+    // Preprare color pair for the remote user cursors
+    init_pair(127, COLOR_BLACK, COLOR_GREEN);
     return;
 }
 
@@ -388,7 +394,7 @@ int read_n(int fd, void *b, size_t n)
     return total;
 }
 
-// Reports the current cursor position, call after any cursor movement
+// Loop that polls cursor movement and sends updates up to 20 times/second
 void *report_cursor_move(void *nothing)
 {
     char data[8];
