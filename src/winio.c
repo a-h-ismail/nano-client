@@ -3444,7 +3444,7 @@ void edit_refresh(void)
 			if (clients[i].current_line != NULL)
 			{
 				int calculated_y = clients[i].current_line->lineno - openfile->edittop->lineno;
-				if (calculated_y > 0 && calculated_y < editwinrows)
+				if (calculated_y >= 0 && calculated_y < editwinrows)
 				{
 					mvwchgat(midwin, calculated_y, clients[i].xpos, 1, A_COLOR, 127, NULL);
 				}
