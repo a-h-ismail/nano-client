@@ -215,8 +215,8 @@ void exec_replace_line(payload *p)
     strncpy(target->data, p->data + 4, p->data_size - 4);
     target->data[p->data_size - 4] = '\0';
     // In case the cursor went out of bound of the replacement line, set it at the last position
-    if (openfile->current_x == target->lineno && openfile->current_y > strlen(target->data))
-        openfile->current_y = strlen(target->data) - 1;
+    if (openfile->current == target && openfile->current_x > strlen(target->data))
+        openfile->current_x = strlen(target->data) - 1;
 }
 
 void exec_add_string(payload *p)
@@ -230,6 +230,9 @@ void exec_add_string(payload *p)
     target->data = nrealloc(target->data, strlen(target->data) + puddle_len + 1);
     memmove(target->data + column + puddle_len, target->data + column, strlen(target->data) - column - puddle_len + 2);
     memcpy(target->data + column, p->data + 8, puddle_len);
+    // Update my cursor if necessary
+    if (openfile->current == target)
+        openfile->current_x += puddle_len;
 }
 
 void exec_remove_string(payload *p)
@@ -246,19 +249,35 @@ void exec_remove_string(payload *p)
         linestruct *prev = target->prev;
         if (prev == NULL)
             return;
+        // If the amount to delete is more than 1, we need to remove count-1 characters from the beginning
         if (count > 1)
             memmove(target->data, target->data + count - 1, strlen(target->data + count - 1) + 1);
+
+        // Move the cursor to the previous line and to the correct place
+        if (openfile->current == target)
+        {
+            openfile->current_x = openfile->current_x - (count - 1) + strlen(prev->data);
+            openfile->current = prev;
+        }
         prev->data = realloc(prev->data, strlen(prev->data) + strlen(target->data) + 1);
         strcat(prev->data, target->data);
         unlink_node(target);
         renumber_from(prev);
     }
     // Remove line break and merge with next line
-    else if (column + count >= strlen(target->data))
+    else if (column + count > strlen(target->data))
     {
         linestruct *next = target->next;
         if (next == NULL)
             return;
+
+        // Move the cursor to the current line since its line is gone
+        if (openfile->current == next)
+        {
+            openfile->current_x = openfile->current_x - (count - 1) + strlen(target->data);
+            openfile->current = target;
+        }
+
         target->data = realloc(target->data, strlen(target->data) + strlen(next->data) + 1);
         strcat(target->data, next->data);
         --count;
@@ -271,6 +290,9 @@ void exec_remove_string(payload *p)
         // Remove the characters by moving the remaining part of the string
         memmove(target->data + column, target->data + column + count, strlen(target->data) - column - count + 1);
         target->data = nrealloc(target->data, strlen(target->data) + 1);
+        // Update my cursor if necessary
+        if (openfile->current == target && column < openfile->current_x)
+            openfile->current_x = openfile->current_x - count;
     }
 }
 
