@@ -96,7 +96,7 @@ void *sync_receiver(void *_srv_descriptor)
     while (1)
     {
         if (retrieve_packet(server_descriptor, &p) == -1)
-            die("Connection to the server was lost!");
+            die("Connection to the server was lost!\n");
         else
         {
             process_commands(&p);
@@ -381,11 +381,11 @@ void start_client()
     out_socket.sin_family = AF_INET;
 
     if (connect(server_descriptor, (SA *)&out_socket, sizeof(out_socket)) == -1)
-        die("Failed to connect to the target server...");
+        die("Failed to connect to the target server...\n");
 
     // Create the pipe used to communicate between threads
     if (pipe(inter_thread_pipe) == -1)
-        die("Failed to initialize inter thread communication!");
+        die("Failed to initialize inter thread communication!\n");
 
     // Start the sync client transmitter and receiver
     pthread_create(&transmitter, &thread_attr, sync_transmitter, &server_descriptor);
