@@ -73,4 +73,6 @@ extern pthread_mutex_t lock_openfile;
 
 extern openfilestruct *openfile;
 
+extern char *server_ip;
+
 #endif

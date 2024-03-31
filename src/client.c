@@ -11,6 +11,7 @@ int b_current;
 bool remote_buffer = false;
 bool download_done = false;
 int8_t my_id;
+char *server_ip;
 
 // [0] for read, [1] for write
 int inter_thread_pipe[2];
@@ -376,7 +377,7 @@ void start_client()
     // Create the socket to be used
     struct sockaddr_in out_socket;
     int server_descriptor = socket(AF_INET, SOCK_STREAM, 0);
-    out_socket.sin_addr.s_addr = inet_addr("127.0.0.1");
+    out_socket.sin_addr.s_addr = inet_addr(server_ip);
     out_socket.sin_port = htons(12000);
     out_socket.sin_family = AF_INET;
 

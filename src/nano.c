@@ -1758,7 +1758,7 @@ int main(int argc, char **argv)
 		/* Whether the quoting regex was compiled successfully. */
 #endif
 	const struct option long_options[] = {
-		{"client", 0, NULL, '+'},
+		{"client", 1, NULL, '+'},
 		{"boldtext", 0, NULL, 'D'},
 #ifdef ENABLE_MULTIBUFFER
 		{"multibuffer", 0, NULL, 'F'},
@@ -1897,6 +1897,7 @@ int main(int argc, char **argv)
 		switch (optchr) {
 		case '+':
 			remote_buffer = TRUE;
+			server_ip = strdup(optarg);
 			break;
 #ifndef NANO_TINY
 			case 'A':
