@@ -21,6 +21,28 @@ int client_count;
 void process_commands(payload *p);
 pthread_mutex_t lock_openfile, lock_tc;
 
+bool function_remote_compatible(void *f)
+{
+    void *allowed[] = {
+        do_page_up,
+        do_page_down,
+        do_enter,
+        do_up,
+        do_down,
+        do_left,
+        do_right,
+        do_backspace,
+        do_delete,
+        do_home,
+        do_end,
+        do_center, do_exit, NULL};
+    for (int i = 0; i < sizeof(allowed) / sizeof(*allowed); ++i)
+        if (allowed[i] == f)
+            return true;
+
+    return false;
+}
+
 linestruct *find_line_by_id(int32_t id)
 {
     linestruct *match = openfile->filetop;
@@ -190,7 +212,7 @@ void exec_add_line(payload *p)
     newline->next = target->next;
     newline->prev = target;
     if (newline->next != NULL)
-            newline->next->prev = newline;
+        newline->next->prev = newline;
     target->next = newline;
     newline->id = with_id;
     // If data size is 8, no string to initialize the line

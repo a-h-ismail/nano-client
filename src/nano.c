@@ -1626,6 +1626,12 @@ void process_a_keystroke(void)
 	shortcut = get_shortcut(input);
 	function = (shortcut ? shortcut->func : NULL);
 
+	if (remote_buffer && function_remote_compatible(function) == false)
+	{
+		statusline(AHEM, _("Function is disabled for remote buffers."));
+		return;
+	}
+
 	/* If not a command, discard anything that is not a normal character byte. */
 	if (!function) {
 		if (input < 0x20 || input > 0xFF || meta_key)

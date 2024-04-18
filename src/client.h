@@ -53,6 +53,9 @@ extern bool download_done;
 extern client_data clients[];
 extern int client_count;
 
+// Checks if the function f is supported in remote operations
+bool function_remote_compatible(void *f);
+
 int read_data(void *_dest, int N);
 
 int read_n(int fd, void *b, size_t n);
