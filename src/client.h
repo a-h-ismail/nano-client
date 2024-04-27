@@ -18,6 +18,7 @@ typedef enum rt_command
     ADD_LINE,
     REMOVE_LINE,
     REPLACE_LINE,
+    BREAK_LINE,
     APPEND_LINE,
     END_APPEND,
     ADD_STR,
@@ -42,10 +43,10 @@ typedef struct client_data
 } client_data;
 
 // Read the data at ptr to the variable var
-#define READ_BIN(var, ptr) memcpy(&var, ptr, sizeof(var));
+#define READ_BIN(var, ptr) memcpy(&var, ptr, sizeof(var))
 
 // Write the variable var to address ptr (even if unaligned)
-#define WRITE_BIN(var, ptr) memcpy(ptr, &var, sizeof(var));
+#define WRITE_BIN(var, ptr) memcpy(ptr, &var, sizeof(var))
 
 extern bool remote_buffer;
 extern bool download_done;
@@ -70,7 +71,7 @@ void report_insertion(char *burst);
 
 void report_deletion(bool is_backspace);
 
-void report_enter();
+void report_enter(bool first_call);
 
 extern pthread_mutex_t lock_openfile;
 
