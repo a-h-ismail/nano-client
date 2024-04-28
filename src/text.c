@@ -857,6 +857,9 @@ void do_enter(void)
 	linestruct *sampleline = openfile->current;
 	bool allblanks = FALSE;
 
+	if (remote_buffer)
+		report_enter(true);
+
 	if (ISSET(AUTOINDENT)) {
 #ifdef ENABLE_JUSTIFY
 		/* When doing automatic long-line wrapping and the next line is
@@ -924,7 +927,7 @@ void do_enter(void)
 	focusing = FALSE;
 
 	if (remote_buffer)
-		report_enter();
+		report_enter(false);
 }
 
 #ifndef NANO_TINY
