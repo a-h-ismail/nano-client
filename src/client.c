@@ -21,6 +21,26 @@ int client_count;
 void process_commands(payload *p);
 pthread_mutex_t lock_openfile, lock_tc;
 
+// Insert a node after the specified node
+// Does not set the ID
+linestruct *insert_node_after(linestruct *prev)
+{
+    if (prev == NULL)
+        return NULL;
+
+    linestruct *newnode = nmalloc(sizeof(linestruct));
+    newnode->prev = prev;
+    newnode->next = prev->next;
+    prev->next = newnode;
+    newnode->next->prev = newnode;
+    renumber_from(prev);
+    newnode->has_anchor = false;
+    newnode->is_locked = false;
+    newnode->data = NULL;
+    newnode->multidata = NULL;
+    return newnode;
+}
+
 bool function_remote_compatible(void *f)
 {
     void *allowed[] = {
@@ -35,7 +55,9 @@ bool function_remote_compatible(void *f)
         do_delete,
         do_home,
         do_end,
-        do_center, do_exit, NULL};
+        do_center,
+        do_exit,
+        NULL};
     for (int i = 0; i < sizeof(allowed) / sizeof(*allowed); ++i)
         if (allowed[i] == f)
             return true;
@@ -175,28 +197,28 @@ void exec_remove_user(payload *p)
 
 void exec_append_line(payload *p)
 {
-    linestruct *new_line;
-    new_line = make_new_node(openfile->filebot);
-    new_line->next = NULL;
-    READ_BIN(new_line->id, p->data)
-    new_line->data = strdup(p->data + 4);
+    linestruct *newline;
+    newline = make_new_node(openfile->filebot);
+    newline->next = NULL;
+    READ_BIN(newline->id, p->data);
+    newline->data = strdup(p->data + 4);
     // Case of the first empty line and the server having a non empty first line
     if (openfile->filebot == openfile->filetop && strlen(openfile->filebot->data) == 0 && p->data[0] != '\0')
     {
-        new_line->lineno = 1;
-        new_line->has_anchor = true;
+        newline->lineno = 1;
+        newline->has_anchor = true;
 
-        new_line->prev = NULL;
+        newline->prev = NULL;
         free(openfile->filebot->data);
-        openfile->current = new_line;
-        openfile->edittop = new_line;
-        openfile->filetop = openfile->filebot = new_line;
+        openfile->current = newline;
+        openfile->edittop = newline;
+        openfile->filetop = openfile->filebot = newline;
     }
     else
     {
-        new_line->lineno = openfile->filebot->lineno + 1;
-        openfile->filebot->next = new_line;
-        openfile->filebot = new_line;
+        newline->lineno = openfile->filebot->lineno + 1;
+        openfile->filebot->next = newline;
+        openfile->filebot = newline;
     }
 }
 
@@ -204,8 +226,8 @@ void exec_add_line(payload *p)
 {
     linestruct *target, *newline;
     int32_t after_id, with_id;
-    READ_BIN(after_id, p->data)
-    READ_BIN(with_id, p->data + 4)
+    READ_BIN(after_id, p->data);
+    READ_BIN(with_id, p->data + 4);
     target = find_line_by_id(after_id);
     newline = make_new_node(target);
     // Relink the target
@@ -231,7 +253,7 @@ void exec_replace_line(payload *p)
 {
     linestruct *target;
     int32_t target_id;
-    READ_BIN(target_id, p->data)
+    READ_BIN(target_id, p->data);
     target = find_line_by_id(target_id);
     free(target->data);
     target->data = malloc(p->data_size - 3);
@@ -242,12 +264,41 @@ void exec_replace_line(payload *p)
         openfile->current_x = strlen(target->data) - 1;
 }
 
+void exec_break_line(payload *p)
+{
+    linestruct *target, *newline;
+    int32_t target_id, newline_id, column, prefix_len = p->data_size - 12;
+    READ_BIN(target_id, p->data);
+    READ_BIN(column, p->data + 4);
+    READ_BIN(newline_id, p->data + 8);
+
+    target = find_line_by_id(target_id);
+    newline = insert_node_after(target);
+    newline->id = newline_id;
+    // The next line will have the prefix and the content at the line breaking position
+    newline->data = nmalloc(prefix_len + strlen(target->data) - column + 1);
+    if (prefix_len != 0)
+        strncpy(newline->data, p->data + 12, prefix_len);
+
+    strcpy(newline->data, target->data + column);
+    target->data = nrealloc(target->data, column);
+    target->data[column] = '\0';
+
+    // Move my cursor if the line broke before its position
+    if (openfile->current == target && openfile->current_x >= column)
+    {
+        openfile->current = newline;
+        openfile->current_x = prefix_len + openfile->current_x - column;
+        ++openfile->current_y;
+    }
+}
+
 void exec_add_string(payload *p)
 {
     linestruct *target;
     int32_t target_id, column, puddle_len = p->data_size - 8;
-    READ_BIN(target_id, p->data)
-    READ_BIN(column, p->data + 4)
+    READ_BIN(target_id, p->data);
+    READ_BIN(column, p->data + 4);
     target = find_line_by_id(target_id);
     // Make room for the substring
     target->data = nrealloc(target->data, strlen(target->data) + puddle_len + 1);
@@ -262,9 +313,9 @@ void exec_remove_string(payload *p)
 {
     linestruct *target;
     int32_t target_id, column, count;
-    READ_BIN(target_id, p->data)
-    READ_BIN(column, p->data + 4)
-    READ_BIN(count, p->data + 8)
+    READ_BIN(target_id, p->data);
+    READ_BIN(column, p->data + 4);
+    READ_BIN(count, p->data + 8);
     target = find_line_by_id(target_id);
     // Remove line break and merge with previous line
     if (column == -1)
@@ -327,9 +378,9 @@ void exec_move_cursor(payload *p)
             break;
 
     int32_t id;
-    READ_BIN(id, p->data)
+    READ_BIN(id, p->data);
     clients[i].current_line = find_line_by_id(id);
-    READ_BIN(clients[i].xpos, p->data + 4)
+    READ_BIN(clients[i].xpos, p->data + 4);
 }
 
 void process_commands(payload *p)
@@ -353,6 +404,10 @@ void process_commands(payload *p)
 
     case END_APPEND:
         download_done = true;
+        break;
+
+    case BREAK_LINE:
+        exec_break_line(p);
         break;
 
     case ADD_LINE:
@@ -443,7 +498,7 @@ int read_n(int fd, void *b, size_t n)
 void *report_cursor_move(void *nothing)
 {
     char data[8];
-    int32_t prev_id, prev_x;
+    int32_t prev_id = openfile->current->id, prev_x = openfile->current_x;
     payload p;
     p.function = MOVE_CURSOR;
     p.data = data;
@@ -454,9 +509,9 @@ void *report_cursor_move(void *nothing)
         if (openfile->current->id != prev_id || openfile->current_x != prev_x)
         {
             prev_id = openfile->current->id;
-            WRITE_BIN(prev_id, data)
+            WRITE_BIN(prev_id, data);
             prev_x = openfile->current_x;
-            WRITE_BIN(prev_x, data + 4)
+            WRITE_BIN(prev_x, data + 4);
             send_packet(inter_thread_pipe[1], &p);
         }
         usleep(50000);
@@ -470,10 +525,10 @@ void report_insertion(char *burst)
     p.data_size = 8 + strlen(burst);
     char buffer[p.data_size];
     p.data = buffer;
-    WRITE_BIN(openfile->current->id, p.data)
+    WRITE_BIN(openfile->current->id, p.data);
     // This is to cast the value to a 4 byte variable and use it in the macro
     int32_t x = openfile->current_x;
-    WRITE_BIN(x, p.data + 4)
+    WRITE_BIN(x, p.data + 4);
     strncpy(p.data + 8, burst, strlen(burst));
     send_packet(inter_thread_pipe[1], &p);
 }
@@ -485,41 +540,44 @@ void report_deletion(bool is_backspace)
     p.data_size = 12;
     char buffer[p.data_size];
     p.data = buffer;
-    WRITE_BIN(openfile->current->id, p.data)
+    WRITE_BIN(openfile->current->id, p.data);
     int32_t tmp = openfile->current_x;
 
     if (is_backspace)
         --tmp;
 
-    WRITE_BIN(tmp, p.data + 4)
+    WRITE_BIN(tmp, p.data + 4);
     tmp = 1;
-    WRITE_BIN(tmp, p.data + 8)
+    WRITE_BIN(tmp, p.data + 8);
     send_packet(inter_thread_pipe[1], &p);
 }
 
-void report_enter()
+void report_enter(bool first_call)
 {
-    // Since a line broke into two and maybe nano was configured to auto-indent
-    // The easiest way is to tell the server what the old line became and the content of the new line
+    static int prev_x;
     payload p;
-    p.function = REPLACE_LINE;
-    p.data_size = 4 + strlen(openfile->current->prev->data);
-    char original_line[p.data_size];
-    strncpy(original_line + 4, openfile->current->prev->data, p.data_size - 4);
-    p.data = original_line;
-    WRITE_BIN(openfile->current->prev->id, p.data)
-    // Send the line replacement command
-    send_packet(inter_thread_pipe[1], &p);
+    if (first_call)
+    {
+        prev_x = openfile->current_x;
+        return;
+    }
+    else
+    {
+        char data[12 + openfile->current_x];
+        linestruct *prev = openfile->current->prev;
+        openfile->current->id = good_rand();
+        // When you break a line, the text editor may add indentation at the beginning of the line
+        // So check if the cursor is at the beginning of the line or not
+        if (openfile->current_x > 0)
+            strncpy(data + 12, prev->data, strlen(prev->data) - prev_x);
 
-    // Now send the new line
-    p.function = ADD_LINE;
-    p.data_size = 8 + strlen(openfile->current->data);
-    char new_line[p.data_size];
-    p.data = new_line;
-    WRITE_BIN(openfile->current->prev->id, p.data)
-    openfile->current->id = good_rand();
-    WRITE_BIN(openfile->current->id, p.data + 4)
-    strncpy(new_line + 8, openfile->current->data, p.data_size - 8);
-    // Send the new line
-    send_packet(inter_thread_pipe[1], &p);
+        // Format: line_to_break | pos_in_line | new_line | prefix
+        p.function = BREAK_LINE;
+        p.data = data;
+        p.data_size = 12 + strlen(prev->data) - prev_x;
+        WRITE_BIN(prev->id, data);
+        WRITE_BIN(prev_x, data + 4);
+        WRITE_BIN(openfile->current->id, data + 8);
+        send_packet(inter_thread_pipe[1], &p);
+    }
 }
