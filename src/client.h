@@ -36,9 +36,9 @@ typedef struct payload
 
 typedef struct client_data
 {
-    int32_t xpos;
     char *name;
     linestruct *current_line;
+    int32_t xpos;
     int8_t user_id;
 } client_data;
 
