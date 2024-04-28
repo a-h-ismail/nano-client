@@ -40,6 +40,7 @@ nano_SOURCES = \
 		search.c \
 		text.c \
 		utils.c \
+		client.c \
 		winio.c
 
 nano_LDADD = @LIBINTL@ $(top_builddir)/lib/libgnu.a \
