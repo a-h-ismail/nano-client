@@ -281,7 +281,7 @@ void exec_break_line(payload *p)
         strncpy(newline->data, p->data + 12, prefix_len);
 
     strcpy(newline->data, target->data + column);
-    target->data = nrealloc(target->data, column);
+    target->data = nrealloc(target->data, column + 1);
     target->data[column] = '\0';
 
     // Move my cursor if the line broke before its position
