@@ -32,7 +32,8 @@ linestruct *insert_node_after(linestruct *prev)
     newnode->prev = prev;
     newnode->next = prev->next;
     prev->next = newnode;
-    newnode->next->prev = newnode;
+    if (newnode->next != NULL)
+        newnode->next->prev = newnode;
     renumber_from(prev);
     newnode->has_anchor = false;
     newnode->is_locked = false;
@@ -57,6 +58,7 @@ bool function_remote_compatible(void *f)
         do_end,
         do_center,
         do_exit,
+        do_tab,
         NULL};
     for (int i = 0; i < sizeof(allowed) / sizeof(*allowed); ++i)
         if (allowed[i] == f)
