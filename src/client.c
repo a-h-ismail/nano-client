@@ -129,7 +129,6 @@ int retrieve_packet(int descriptor, payload *p)
 
     p->user_id = recv_buffer[0];
     p->function = (rt_command)recv_buffer[1];
-    p->data = malloc(size - 2);
     memcpy(p->data, recv_buffer + 2, size - 2);
     p->data_size = size - 2;
     return 0;
@@ -145,10 +144,7 @@ void *sync_receiver(void *_srv_descriptor)
         if (retrieve_packet(server_descriptor, &p) == -1)
             die("Connection to the server was lost!\n");
         else
-        {
             process_commands(&p);
-            free(p.data);
-        }
     }
 }
 
@@ -162,10 +158,7 @@ void *sync_transmitter(void *_srv_descriptor)
         if (retrieve_packet(inter_thread_pipe[0], &p) == -1)
             die("Broken thread communication pipe!\n");
         else
-        {
             send_packet(server_descriptor, &p);
-            free(p.data);
-        }
     }
 }
 
@@ -231,13 +224,7 @@ void exec_add_line(payload *p)
     READ_BIN(after_id, p->data);
     READ_BIN(with_id, p->data + 4);
     target = find_line_by_id(after_id);
-    newline = make_new_node(target);
-    // Relink the target
-    newline->next = target->next;
-    newline->prev = target;
-    if (newline->next != NULL)
-        newline->next->prev = newline;
-    target->next = newline;
+    newline = insert_node_after(target);
     newline->id = with_id;
     // If data size is 8, no string to initialize the line
     if (p->data_size == 8)
@@ -257,8 +244,7 @@ void exec_replace_line(payload *p)
     int32_t target_id;
     READ_BIN(target_id, p->data);
     target = find_line_by_id(target_id);
-    free(target->data);
-    target->data = malloc(p->data_size - 3);
+    target->data = realloc(target->data, p->data_size - 3);
     strncpy(target->data, p->data + 4, p->data_size - 4);
     target->data[p->data_size - 4] = '\0';
     // In case the cursor went out of bound of the replacement line, set it at the last position
@@ -499,21 +485,19 @@ int read_n(int fd, void *b, size_t n)
 // Loop that polls cursor movement and sends updates up to 20 times/second
 void *report_cursor_move(void *nothing)
 {
-    char data[8];
     int32_t prev_id = openfile->current->id, prev_x = openfile->current_x;
     payload p;
     p.function = MOVE_CURSOR;
-    p.data = data;
-    p.data_size = sizeof(data);
+    p.data_size = 8;
 
     while (1)
     {
         if (openfile->current->id != prev_id || openfile->current_x != prev_x)
         {
             prev_id = openfile->current->id;
-            WRITE_BIN(prev_id, data);
+            WRITE_BIN(prev_id, p.data);
             prev_x = openfile->current_x;
-            WRITE_BIN(prev_x, data + 4);
+            WRITE_BIN(prev_x, p.data + 4);
             send_packet(inter_thread_pipe[1], &p);
         }
         usleep(50000);
@@ -525,8 +509,6 @@ void report_insertion(char *burst)
     payload p;
     p.function = ADD_STR;
     p.data_size = 8 + strlen(burst);
-    char buffer[p.data_size];
-    p.data = buffer;
     WRITE_BIN(openfile->current->id, p.data);
     // This is to cast the value to a 4 byte variable and use it in the macro
     int32_t x = openfile->current_x;
@@ -540,8 +522,6 @@ void report_deletion(bool is_backspace)
     payload p;
     p.function = REMOVE_STR;
     p.data_size = 12;
-    char buffer[p.data_size];
-    p.data = buffer;
     WRITE_BIN(openfile->current->id, p.data);
     int32_t tmp = openfile->current_x;
 
@@ -565,21 +545,19 @@ void report_enter(bool first_call)
     }
     else
     {
-        char data[12 + openfile->current_x];
         linestruct *prev = openfile->current->prev;
         openfile->current->id = good_rand();
         // When you break a line, the text editor may add indentation at the beginning of the line
         // So check if the cursor is at the beginning of the line or not
         if (openfile->current_x > 0)
-            strncpy(data + 12, prev->data, strlen(prev->data) - prev_x);
+            strncpy(p.data + 12, prev->data, strlen(prev->data) - prev_x);
 
         // Format: line_to_break | pos_in_line | new_line | prefix
         p.function = BREAK_LINE;
-        p.data = data;
         p.data_size = 12 + strlen(prev->data) - prev_x;
-        WRITE_BIN(prev->id, data);
-        WRITE_BIN(prev_x, data + 4);
-        WRITE_BIN(openfile->current->id, data + 8);
+        WRITE_BIN(prev->id, p.data);
+        WRITE_BIN(prev_x, p.data + 4);
+        WRITE_BIN(openfile->current->id, p.data + 8);
         send_packet(inter_thread_pipe[1], &p);
     }
 }
