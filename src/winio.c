@@ -3131,6 +3131,9 @@ void edit_scroll(bool direction)
 										openfile->current_x : 0);
 		line = line->next;
 	}
+
+	if (remote_buffer)
+		draw_remote_cursors();
 }
 
 #ifndef NANO_TINY
@@ -3348,6 +3351,9 @@ void edit_redraw(linestruct *old_current, update_type manner)
 
 	openfile->placewewant = xplustabs();
 
+	if (remote_buffer)
+		draw_remote_cursors();
+
 	/* If the current line is offscreen, scroll until it's onscreen. */
 	if (current_is_offscreen()) {
 		adjust_viewport(ISSET(JUMPY_SCROLLING) ? CENTERING : manner);
@@ -3439,28 +3445,8 @@ void edit_refresh(void)
 #endif
 
 	if (remote_buffer)
-	{
-		for (int i = 0; i < client_count; ++i)
-			if (clients[i].current_line != NULL)
-			{
-				size_t calculated_y = clients[i].current_line->lineno - openfile->edittop->lineno;
-				size_t calculated_x = wideness(clients[i].current_line->data, clients[i].xpos);
+		draw_remote_cursors();
 
-				// When the line is longer than the window width, we should calculate the relative remote cursor position.
-				if (clients[i].current_line == openfile->current && openfile->current_x > editwincols)
-				{
-					size_t xpage_start = get_page_start(calculated_x);
-					size_t cursor_page_start = get_page_start(openfile->current_x);
-					if (xpage_start == cursor_page_start)
-						calculated_x -= xpage_start;
-				}
-
-				if (calculated_y >= 0 && calculated_y < editwinrows)
-				{
-					mvwchgat(midwin, calculated_y, calculated_x, 1, A_COLOR, 127, NULL);
-				}
-			}
-	}
 	place_the_cursor();
 	wnoutrefresh(midwin);
 
@@ -3491,6 +3477,9 @@ void adjust_viewport(update_type manner)
 
 	/* Move edittop back goal rows, starting at current[current_x]. */
 	go_back_chunks(goal, &openfile->edittop, &openfile->firstcolumn);
+
+	if (remote_buffer)
+		draw_remote_cursors();
 }
 
 /* Tell curses to unconditionally redraw whatever was on the screen. */
