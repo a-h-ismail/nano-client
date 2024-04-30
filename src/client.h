@@ -31,7 +31,7 @@ typedef struct payload
     uint16_t data_size;
     int8_t user_id;
     rt_command function;
-    char *data;
+    char data[1024];
 } payload;
 
 typedef struct client_data
