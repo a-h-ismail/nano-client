@@ -67,6 +67,8 @@ void start_client();
 
 void *report_cursor_move(void *);
 
+void draw_remote_cursors();
+
 void report_insertion(char *burst);
 
 void report_deletion(bool is_backspace);
