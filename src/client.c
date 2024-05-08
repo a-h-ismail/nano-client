@@ -12,6 +12,7 @@ bool remote_buffer = false;
 bool download_done = false;
 int8_t my_id;
 char *server_ip;
+char *alternate_title = NULL;
 
 // [0] for read, [1] for write
 int inter_thread_pipe[2];
@@ -20,6 +21,13 @@ int client_count;
 
 void process_commands(payload *p);
 pthread_mutex_t lock_openfile, lock_tc;
+
+void update_remote_title()
+{
+    free(alternate_title);
+    asprintf(&alternate_title, "file:/%s/%s   Online: %d", server_ip, "null", client_count + 1);
+    titlebar(NULL);
+}
 
 // Insert a node after the specified node
 // Does not set the ID
@@ -173,6 +181,7 @@ void exec_add_user(payload *p)
         clients[client_count].current_line = NULL;
         ++client_count;
     }
+    update_remote_title();
 }
 
 void exec_remove_user(payload *p)
@@ -188,6 +197,7 @@ void exec_remove_user(payload *p)
             break;
         }
     }
+    update_remote_title();
 }
 
 void exec_append_line(payload *p)
@@ -392,6 +402,7 @@ void process_commands(payload *p)
 
     case END_APPEND:
         download_done = true;
+        update_remote_title();
         break;
 
     case BREAK_LINE:

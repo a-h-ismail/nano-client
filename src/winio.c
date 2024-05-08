@@ -2037,14 +2037,25 @@ void titlebar(const char *path)
 
 	/* Figure out the path, prefix and state strings. */
 #ifdef ENABLE_COLOR
-	if (currmenu == MLINTER) {
+	if (remote_buffer)
+	{
+		if (download_done)
+			path = alternate_title;
+		else
+			path = "Downloading...";
+		pathlen = breadth(path);
+	}
+
+	if (currmenu == MLINTER)
+	{
 		/* TRANSLATORS: The next five are "labels" in the title bar. */
 		prefix = _("Linting --");
 		path = openfile->filename;
-	} else
+	}
+	else
 #endif
 #ifdef ENABLE_BROWSER
-	if (!inhelp && path != NULL)
+		if (!remote_buffer && !inhelp && path != NULL)
 		prefix = _("DIR:");
 	else
 #endif
@@ -2060,10 +2071,13 @@ void titlebar(const char *path)
 #endif
 			upperleft = BRANDING;
 
-		if (openfile->filename[0] == '\0')
-			path = _("New Buffer");
-		else
-			path = openfile->filename;
+		if (!remote_buffer)
+		{
+			if (openfile->filename[0] == '\0')
+				path = _("New Buffer");
+			else
+				path = openfile->filename;
+		}
 
 		if (ISSET(VIEW_MODE))
 			state = _("View");

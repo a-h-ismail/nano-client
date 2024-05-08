@@ -81,4 +81,6 @@ extern openfilestruct *openfile;
 
 extern char *server_ip;
 
+extern char *alternate_title;
+
 #endif
