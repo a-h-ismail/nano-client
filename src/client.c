@@ -13,6 +13,7 @@ bool download_done = false;
 int8_t my_id;
 char *server_ip;
 char *alternate_title = NULL;
+char *remote_filename = NULL;
 
 // [0] for read, [1] for write
 int inter_thread_pipe[2];
@@ -25,7 +26,7 @@ pthread_mutex_t lock_openfile, lock_tc;
 void update_remote_title()
 {
     free(alternate_title);
-    asprintf(&alternate_title, "file:/%s/%s   Online: %d", server_ip, "null", client_count + 1);
+    asprintf(&alternate_title, "file:/%s/%s   Online: %d", server_ip, remote_filename, client_count + 1);
     titlebar(NULL);
 }
 
@@ -439,7 +440,7 @@ void process_commands(payload *p)
     pthread_mutex_unlock(&lock_openfile);
 }
 
-// Starts the sync client: connects to the server and initiates transmit/receive threads
+// Starts the sync client: connects to the server, requests a file and initiates transmit/receive threads
 void start_client()
 {
     pthread_attr_t thread_attr;
@@ -459,6 +460,13 @@ void start_client()
 
     if (connect(server_descriptor, (SA *)&out_socket, sizeof(out_socket)) == -1)
         die("Failed to connect to the target server...\n");
+
+    // Request the filename to open
+    payload p;
+    p.function = OPEN_FILE;
+    p.data_size = strlen(remote_filename);
+    strncpy(p.data, remote_filename, p.data_size);
+    send_packet(server_descriptor, &p);
 
     // Create the pipe used to communicate between threads
     if (pipe(inter_thread_pipe) == -1)

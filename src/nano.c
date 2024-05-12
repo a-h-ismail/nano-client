@@ -2645,9 +2645,10 @@ int main(int argc, char **argv)
 
 	/* Initiate the connection to the remote buffer if needed. */
         if (remote_buffer) {
-          start_client();
-          while (!download_done)
-            usleep(50000);
+			remote_filename = argv[3];
+			start_client();
+			while (!download_done)
+				usleep(50000);
         }
 
         while (TRUE) {
