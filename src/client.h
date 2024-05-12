@@ -23,7 +23,8 @@ typedef enum rt_command
     END_APPEND,
     ADD_STR,
     REMOVE_STR,
-    MOVE_CURSOR
+    MOVE_CURSOR,
+    OPEN_FILE
 } rt_command;
 
 typedef struct payload
@@ -82,5 +83,7 @@ extern openfilestruct *openfile;
 extern char *server_ip;
 
 extern char *alternate_title;
+
+extern char *remote_filename;
 
 #endif
