@@ -24,8 +24,17 @@ typedef enum rt_command
     ADD_STR,
     REMOVE_STR,
     MOVE_CURSOR,
-    OPEN_FILE
+    OPEN_FILE,
+    STATUS
 } rt_command;
+
+enum status_msg
+{
+    ACCEPTED,
+    FILE_INACCESSIBLE,
+    CLIENTS_EXCEEDED,
+    PROTOCOL_ERROR
+};
 
 typedef struct payload
 {
