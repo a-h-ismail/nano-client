@@ -414,7 +414,7 @@ void die(const char *msg, ...)
 #endif
 		/* When modified, save the current buffer.  But not when in restricted
 		 * mode, as it would write a file not mentioned on the command line. */
-		if (openfile->modified && !ISSET(RESTRICTED))
+		if (!remote_buffer && openfile->modified && !ISSET(RESTRICTED))
 			emergency_save(openfile->filename);
 
 #ifdef ENABLE_MULTIBUFFER
