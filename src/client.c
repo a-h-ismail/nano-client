@@ -462,11 +462,26 @@ void start_client()
         die("Failed to connect to the target server...\n");
 
     // Request the filename to open
-    payload p;
-    p.function = OPEN_FILE;
-    p.data_size = strlen(remote_filename);
-    strncpy(p.data, remote_filename, p.data_size);
-    send_packet(server_descriptor, &p);
+    payload request_file;
+    request_file.function = OPEN_FILE;
+    request_file.data_size = strlen(remote_filename);
+    strncpy(request_file.data, remote_filename, request_file.data_size);
+    send_packet(server_descriptor, &request_file);
+
+    // Check the response code
+    payload response;
+    retrieve_packet(server_descriptor, &response);
+    switch (response.data[0])
+    {
+    case ACCEPTED:
+        break;
+    case FILE_INACCESSIBLE:
+        die("The requested file is inaccessible.\n");
+    case CLIENTS_EXCEEDED:
+        die("Client count for this file exceeded on the server!\n");
+    case PROTOCOL_ERROR:
+        die("A Protocol error occured, possibly a client/server mismatch.");
+    }
 
     // Create the pipe used to communicate between threads
     if (pipe(inter_thread_pipe) == -1)
