@@ -6,17 +6,14 @@
 #include "client.h"
 #include "prototypes.h"
 
-int b_start;
-int b_current;
 bool remote_buffer = false;
 bool download_done = false;
 int8_t my_id;
+int server_fd;
 char *server_ip;
 char *alternate_title = NULL;
 char *remote_filename = NULL;
 
-// [0] for read, [1] for write
-int inter_thread_pipe[2];
 client_data clients[9];
 int client_count;
 
@@ -154,20 +151,6 @@ void *sync_receiver(void *_srv_descriptor)
             die("Connection to the server was lost!\n");
         else
             process_commands(&p);
-    }
-}
-
-void *sync_transmitter(void *_srv_descriptor)
-{
-    int server_descriptor = *(int *)_srv_descriptor;
-    payload p;
-
-    while (1)
-    {
-        if (retrieve_packet(inter_thread_pipe[0], &p) == -1)
-            die("Broken thread communication pipe!\n");
-        else
-            send_packet(server_descriptor, &p);
     }
 }
 
@@ -445,7 +428,7 @@ void start_client()
 {
     pthread_attr_t thread_attr;
     pthread_mutexattr_t mtx_attr;
-    pthread_t transmitter, receiver, cursor_monitor;
+    pthread_t receiver, cursor_monitor;
     pthread_mutexattr_init(&mtx_attr);
     pthread_mutex_init(&lock_openfile, &mtx_attr);
     pthread_mutex_init(&lock_tc, &mtx_attr);
@@ -460,6 +443,8 @@ void start_client()
 
     if (connect(server_descriptor, (SA *)&out_socket, sizeof(out_socket)) == -1)
         die("Failed to connect to the target server...\n");
+    else
+        server_fd = server_descriptor;
 
     // Request the filename to open
     payload request_file;
@@ -483,15 +468,9 @@ void start_client()
         die("A Protocol error occured, possibly a client/server mismatch.");
     }
 
-    // Create the pipe used to communicate between threads
-    if (pipe(inter_thread_pipe) == -1)
-        die("Failed to initialize inter thread communication!\n");
-
     // Start the sync client transmitter and receiver
-    pthread_create(&transmitter, &thread_attr, sync_transmitter, &server_descriptor);
     pthread_create(&receiver, &thread_attr, sync_receiver, &server_descriptor);
     pthread_create(&cursor_monitor, &thread_attr, report_cursor_move, NULL);
-    pthread_detach(transmitter);
     pthread_detach(receiver);
     pthread_detach(cursor_monitor);
 
@@ -532,7 +511,7 @@ void *report_cursor_move(void *nothing)
             WRITE_BIN(prev_id, p.data);
             prev_x = openfile->current_x;
             WRITE_BIN(prev_x, p.data + 4);
-            send_packet(inter_thread_pipe[1], &p);
+            send_packet(server_fd, &p);
         }
         usleep(50000);
     }
@@ -574,7 +553,7 @@ void report_insertion(char *burst)
     int32_t x = openfile->current_x;
     WRITE_BIN(x, p.data + 4);
     strncpy(p.data + 8, burst, strlen(burst));
-    send_packet(inter_thread_pipe[1], &p);
+    send_packet(server_fd, &p);
 }
 
 void report_deletion(bool is_backspace)
@@ -591,7 +570,7 @@ void report_deletion(bool is_backspace)
     WRITE_BIN(tmp, p.data + 4);
     tmp = 1;
     WRITE_BIN(tmp, p.data + 8);
-    send_packet(inter_thread_pipe[1], &p);
+    send_packet(server_fd, &p);
 }
 
 void report_enter(bool first_call)
@@ -618,6 +597,6 @@ void report_enter(bool first_call)
         WRITE_BIN(prev->id, p.data);
         WRITE_BIN(prev_x, p.data + 4);
         WRITE_BIN(openfile->current->id, p.data + 8);
-        send_packet(inter_thread_pipe[1], &p);
+        send_packet(server_fd, &p);
     }
 }
