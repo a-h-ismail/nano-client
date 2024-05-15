@@ -20,6 +20,7 @@
  **************************************************************************/
 
 #include "prototypes.h"
+#include "client.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -437,7 +438,8 @@ bool open_buffer(const char *filename, bool new_one)
 	if (new_one) {
 		make_new_buffer();
 
-		if (has_valid_path(realname)) {
+		if (!remote_buffer && has_valid_path(realname))
+		{
 #ifndef NANO_TINY
 			if (ISSET(LOCKING) && !ISSET(VIEW_MODE) && filename[0] != '\0') {
 				char *thelocksname = do_lockfile(realname, TRUE);
