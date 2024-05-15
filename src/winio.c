@@ -21,7 +21,7 @@
 
 #include "client.h"
 #include "prototypes.h"
-#include "revision.h"
+// #include "revision.h"
 
 #include <ctype.h>
 #ifdef __linux__
