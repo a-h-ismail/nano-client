@@ -1,4 +1,5 @@
 #include <config.h>
+#include <assert.h>
 #include <unistd.h>
 #include <inttypes.h>
 #include <string.h>
@@ -96,7 +97,7 @@ int32_t good_rand()
 
 int send_packet(int descriptor, payload *p)
 {
-    char send_buffer[1024];
+    char send_buffer[DATA_MAX];
     // +2 for the function and user id
     uint16_t payload_size = p->data_size + 2;
     // Frame start
@@ -107,6 +108,8 @@ int send_packet(int descriptor, payload *p)
     send_buffer[3] = my_id;
     // Function
     send_buffer[4] = p->function;
+    assert(p->data_size <= DATA_MAX);
+
     // Data
     memcpy(send_buffer + 5, p->data, p->data_size);
     // +3 for the frame start and payload size
@@ -365,6 +368,21 @@ void exec_move_cursor(payload *p)
     READ_BIN(clients[i].xpos, p->data + 4);
 }
 
+void handle_status(payload *p)
+{
+    switch (p->data[0])
+    {
+    case ACCEPTED:
+        break;
+    case FILE_INACCESSIBLE:
+        die("The requested file is inaccessible.\n");
+    case CLIENTS_EXCEEDED:
+        die("Client count for this file exceeded on the server!\n");
+    case PROTOCOL_ERROR:
+        die("A Protocol error occured, possibly a client/server mismatch.");
+    }
+}
+
 void process_commands(payload *p)
 {
     // Lock the open file buffer to block the main thread from editing it
@@ -456,17 +474,7 @@ void start_client()
     // Check the response code
     payload response;
     retrieve_packet(server_descriptor, &response);
-    switch (response.data[0])
-    {
-    case ACCEPTED:
-        break;
-    case FILE_INACCESSIBLE:
-        die("The requested file is inaccessible.\n");
-    case CLIENTS_EXCEEDED:
-        die("Client count for this file exceeded on the server!\n");
-    case PROTOCOL_ERROR:
-        die("A Protocol error occured, possibly a client/server mismatch.");
-    }
+    handle_status(&response);
 
     // Start the sync client transmitter and receiver
     pthread_create(&receiver, &thread_attr, sync_receiver, &server_descriptor);
