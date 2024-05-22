@@ -24,7 +24,7 @@ pthread_mutex_t lock_openfile, lock_tc;
 void update_remote_title()
 {
     free(alternate_title);
-    asprintf(&alternate_title, "file:/%s/%s   Online: %d", server_ip, remote_filename, client_count + 1);
+    asprintf(&alternate_title, "file://%s/%s   Online: %d", server_ip, remote_filename, client_count + 1);
     titlebar(NULL);
 }
 
