@@ -95,51 +95,45 @@ int32_t good_rand()
     return value;
 }
 
-int send_packet(int descriptor, payload *p)
+int send_packet(int fd, payload *p)
 {
-    char send_buffer[DATA_MAX];
-    // +2 for the function and user id
-    uint16_t payload_size = p->data_size + 2;
-    // Frame start
-    send_buffer[0] = '\a';
-    // Payload size is bytes 1-2
-    WRITE_BIN(payload_size, send_buffer + 1);
-
-    send_buffer[3] = my_id;
-    // Function
-    send_buffer[4] = p->function;
     assert(p->data_size <= DATA_MAX);
 
-    // Data
+    char send_buffer[DATA_MAX];
+    uint16_t payload_size = p->data_size + PREAMBLE_SIZE;
+    // Preamble section: frame start, data size, user ID and function
+    send_buffer[0] = '\a';
+    WRITE_BIN(p->data_size, send_buffer + 1);
+    send_buffer[3] = my_id;
+    send_buffer[4] = p->function;
+    // Data section
     memcpy(send_buffer + 5, p->data, p->data_size);
-    // +3 for the frame start and payload size
-    return write(descriptor, send_buffer, payload_size + 3);
+    return write(fd, send_buffer, payload_size);
 }
 
-int retrieve_packet(int descriptor, payload *p)
+int retrieve_packet(int fd, payload *p)
 {
-    uint16_t size;
-    char recv_buffer[1024];
-    if (read(descriptor, recv_buffer, 1) < 1)
-        return -1;
+    uint16_t dsize;
+    char recv_buffer[DATA_MAX];
 
-    // Check for the frame start
+    // Read the preamble section
+    if (read_n(fd, recv_buffer, PREAMBLE_SIZE) < 1)
+        return -1;
     if (recv_buffer[0] != '\a')
         return -1;
+    READ_BIN(dsize, recv_buffer + 1);
+    if (dsize > DATA_MAX)
+        return -1;
+    p->data_size = dsize;
+    p->user_id = recv_buffer[3];
+    p->function = recv_buffer[4];
 
-    if (read_n(descriptor, recv_buffer, 2) < 1)
+    // Read the data section
+    if (dsize > 0 && read_n(fd, recv_buffer, dsize) < 1)
         return -1;
 
-    READ_BIN(size, recv_buffer);
-
-    // Read the user_id, function and its data
-    if (read_n(descriptor, recv_buffer, size) < 1)
-        return -1;
-
-    p->user_id = recv_buffer[0];
-    p->function = (rt_command)recv_buffer[1];
-    memcpy(p->data, recv_buffer + 2, size - 2);
-    p->data_size = size - 2;
+    memcpy(p->data, recv_buffer, dsize);
+    p->data_size = dsize;
     return 0;
 }
 
