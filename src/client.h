@@ -36,12 +36,19 @@ enum status_msg
     PROTOCOL_ERROR
 };
 
+#define DATA_MAX 1024
+
+// The 5 additional bits are: frame start (1) + data size (2) + user_id (1) + function (1)
+#define PREAMBLE_SIZE 5
+
+#define PAYLOAD_MAX (DATA_MAX + PREAMBLE_SIZE)
+
 typedef struct payload
 {
     uint16_t data_size;
     int8_t user_id;
     rt_command function;
-    char data[1024];
+    char data[DATA_MAX];
 } payload;
 
 typedef struct client_data
