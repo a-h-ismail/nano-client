@@ -95,13 +95,13 @@ int32_t good_rand()
     return value;
 }
 
-int send_packet(int fd, payload *p)
+int send_payload(int fd, payload *p)
 {
     assert(p->data_size <= DATA_MAX);
 
     char send_buffer[DATA_MAX];
     uint16_t payload_size = p->data_size + PREAMBLE_SIZE;
-    // Preamble section: frame start, data size, user ID and function
+    // Preamble section: payload start, data size, user ID and function
     send_buffer[0] = '\a';
     WRITE_BIN(p->data_size, send_buffer + 1);
     send_buffer[3] = my_id;
@@ -111,7 +111,7 @@ int send_packet(int fd, payload *p)
     return write(fd, send_buffer, payload_size);
 }
 
-int retrieve_packet(int fd, payload *p)
+int retrieve_payload(int fd, payload *p)
 {
     uint16_t dsize;
     char recv_buffer[DATA_MAX];
@@ -144,7 +144,7 @@ void *sync_receiver(void *_srv_descriptor)
 
     while (1)
     {
-        if (retrieve_packet(server_descriptor, &p) == -1)
+        if (retrieve_payload(server_descriptor, &p) == -1)
             die("Connection to the server was lost!\n");
         else
             process_commands(&p);
@@ -463,11 +463,11 @@ void start_client()
     request_file.function = OPEN_FILE;
     request_file.data_size = strlen(remote_filename);
     strncpy(request_file.data, remote_filename, request_file.data_size);
-    send_packet(server_descriptor, &request_file);
+    send_payload(server_descriptor, &request_file);
 
     // Check the response code
     payload response;
-    retrieve_packet(server_descriptor, &response);
+    retrieve_payload(server_descriptor, &response);
     handle_status(&response);
 
     // Start the sync client transmitter and receiver
@@ -513,7 +513,7 @@ void *report_cursor_move(void *nothing)
             WRITE_BIN(prev_id, p.data);
             prev_x = openfile->current_x;
             WRITE_BIN(prev_x, p.data + 4);
-            send_packet(server_fd, &p);
+            send_payload(server_fd, &p);
         }
         usleep(50000);
     }
@@ -555,7 +555,7 @@ void report_insertion(char *burst)
     int32_t x = openfile->current_x;
     WRITE_BIN(x, p.data + 4);
     strncpy(p.data + 8, burst, strlen(burst));
-    send_packet(server_fd, &p);
+    send_payload(server_fd, &p);
 }
 
 void report_deletion(bool is_backspace)
@@ -572,7 +572,7 @@ void report_deletion(bool is_backspace)
     WRITE_BIN(tmp, p.data + 4);
     tmp = 1;
     WRITE_BIN(tmp, p.data + 8);
-    send_packet(server_fd, &p);
+    send_payload(server_fd, &p);
 }
 
 void report_enter(bool first_call)
@@ -599,6 +599,6 @@ void report_enter(bool first_call)
         WRITE_BIN(prev->id, p.data);
         WRITE_BIN(prev_x, p.data + 4);
         WRITE_BIN(openfile->current->id, p.data + 8);
-        send_packet(server_fd, &p);
+        send_payload(server_fd, &p);
     }
 }

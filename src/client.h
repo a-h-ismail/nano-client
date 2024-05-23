@@ -38,7 +38,7 @@ enum status_msg
 
 #define DATA_MAX 1024
 
-// The 5 additional bits are: frame start (1) + data size (2) + user_id (1) + function (1)
+// The 5 additional bits are: payload start (1) + data size (2) + user_id (1) + function (1)
 #define PREAMBLE_SIZE 5
 
 #define PAYLOAD_MAX (DATA_MAX + PREAMBLE_SIZE)
