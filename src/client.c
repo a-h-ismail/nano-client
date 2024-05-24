@@ -215,6 +215,8 @@ void exec_add_line(payload *p)
     READ_BIN(after_id, p->data);
     READ_BIN(with_id, p->data + 4);
     target = find_line_by_id(after_id);
+    if (target == NULL)
+        return;
     newline = insert_node_after(target);
     newline->id = with_id;
     // If data size is 8, no string to initialize the line
@@ -229,12 +231,24 @@ void exec_add_line(payload *p)
     renumber_from(target);
 }
 
+void exec_remove_line(payload *p)
+{
+    linestruct *target;
+    int32_t target_id;
+    READ_BIN(target_id, p->data);
+    target = find_line_by_id(target_id);
+    if (target != NULL)
+        unlink_node(target);
+}
+
 void exec_replace_line(payload *p)
 {
     linestruct *target;
     int32_t target_id;
     READ_BIN(target_id, p->data);
     target = find_line_by_id(target_id);
+    if (target == NULL)
+        return;
     target->data = realloc(target->data, p->data_size - 3);
     strncpy(target->data, p->data + 4, p->data_size - 4);
     target->data[p->data_size - 4] = '\0';
@@ -252,6 +266,8 @@ void exec_break_line(payload *p)
     READ_BIN(newline_id, p->data + 8);
 
     target = find_line_by_id(target_id);
+    if (target == NULL)
+        return;
     newline = insert_node_after(target);
     newline->id = newline_id;
     // The next line will have the prefix and the content at the line breaking position
@@ -279,6 +295,8 @@ void exec_add_string(payload *p)
     READ_BIN(target_id, p->data);
     READ_BIN(column, p->data + 4);
     target = find_line_by_id(target_id);
+    if (target == NULL)
+        return;
     // Make room for the substring
     target->data = nrealloc(target->data, strlen(target->data) + puddle_len + 1);
     memmove(target->data + column + puddle_len, target->data + column, strlen(target->data) - column - puddle_len + 2);
@@ -296,6 +314,8 @@ void exec_remove_string(payload *p)
     READ_BIN(column, p->data + 4);
     READ_BIN(count, p->data + 8);
     target = find_line_by_id(target_id);
+    if (target == NULL)
+        return;
     // Remove line break and merge with previous line
     if (column == -1)
     {
@@ -407,6 +427,10 @@ void process_commands(payload *p)
 
     case ADD_LINE:
         exec_add_line(p);
+        break;
+
+    case REMOVE_LINE:
+        exec_remove_line(p);
         break;
 
     case REPLACE_LINE:
