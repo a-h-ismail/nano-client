@@ -388,6 +388,14 @@ void handle_status(payload *p)
     {
     case ACCEPTED:
         break;
+
+    case UPLOAD_DONE:
+        download_done = true;
+        update_remote_title();
+        edit_refresh();
+        doupdate();
+        break;
+
     case FILE_INACCESSIBLE:
         die("The requested file is inaccessible.\n");
     case CLIENTS_EXCEEDED:
@@ -416,11 +424,6 @@ void process_commands(payload *p)
         exec_append_line(p);
         break;
 
-    case END_APPEND:
-        download_done = true;
-        update_remote_title();
-        break;
-
     case BREAK_LINE:
         exec_break_line(p);
         break;
@@ -447,6 +450,10 @@ void process_commands(payload *p)
 
     case MOVE_CURSOR:
         exec_move_cursor(p);
+        break;
+
+    case STATUS:
+        handle_status(p);
         break;
     }
 
