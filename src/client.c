@@ -187,7 +187,7 @@ void exec_append_line(payload *p)
     newline = make_new_node(openfile->filebot);
     newline->next = NULL;
     READ_BIN(newline->id, p->data);
-    newline->data = strdup(p->data + 4);
+    newline->data = strndup(p->data + 4, p->data_size - 4);
     // Case of the first empty line and the server having a non empty first line
     if (openfile->filebot == openfile->filetop && strlen(openfile->filebot->data) == 0 && p->data[0] != '\0')
     {
@@ -299,7 +299,7 @@ void exec_add_string(payload *p)
         return;
     // Make room for the substring
     target->data = nrealloc(target->data, strlen(target->data) + puddle_len + 1);
-    memmove(target->data + column + puddle_len, target->data + column, strlen(target->data) - column - puddle_len + 2);
+    memmove(target->data + column + puddle_len, target->data + column, strlen(target->data) - column + 1);
     memcpy(target->data + column, p->data + 8, puddle_len);
     // Update my cursor if necessary
     if (openfile->current == target)
